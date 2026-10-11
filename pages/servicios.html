@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Servicios de Enrique Alegre: capacitaciones, clases de electrónica, desarrollo web y automatización de tareas." />
+    <meta name="author" content="Enrique Alegre" />
+    <title>Enrique Alegre | Servicios</title>
+
+    <!-- Fuente: Poppins (Google Fonts) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<!-- Bootstrap (CSS) -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB"
+      crossorigin="anonymous"
+    />
+
+    <!-- Mis estilos: siempre al final -->
+    <link rel="stylesheet" href="../css/styles.css" />
+</head>
+<body>
+    <!-- ===== HEADER / MENÚ ===== -->
+    <header class="header">
+      <nav class="navbar navbar-expand-lg header__nav">
+        <div class="header__container">
+          <a class="navbar-brand header__logo" href="../index.html">
+            <img src="../assets/img/logo.svg" alt="Logo de Enrique Alegre" class="header__logo-img" />
+            <span>Enrique Alegre</span>
+          </a>
+          <button class="navbar-toggler header__toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menu" aria-controls="menu" aria-expanded="false" aria-label="Abrir menú">
+            <span class="navbar-toggler-icon"></span>
+          </button>
+          <div class="collapse navbar-collapse" id="menu">
+            <ul class="navbar-nav ms-auto">
+              <li class="nav-item"><a class="nav-link header__link" href="../index.html">Inicio</a></li>
+              <li class="nav-item"><a class="nav-link header__link active" aria-current="page" href="./servicios.html">Servicios</a></li>
+              <li class="nav-item"><a class="nav-link header__link" href="./contacto.html">Contacto</a></li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <!-- ===== ENCABEZADO DE PÁGINA ===== -->
+      <section class="page-hero">
+        <div class="wrapper">
+          <span class="label"><span class="label__line"></span>Servicios</span>
+          <h1 class="hero__title">Tecnología explicada y <span class="hero__highlight">puesta a funcionar</span></h1>
+          <p class="hero__text">Capacitaciones, recursos para el aula y pequeños desarrollos a medida, con la mirada de un docente y la práctica de un analista.</p>
+        </div>
+      </section>
+
+      <!-- ===== SERVICIOS ===== -->
+      <section class="services">
+        <div class="wrapper">
+          <span class="label"><span class="label__line"></span>Lo que ofrezco</span>
+          <h2 class="section-title">Servicios</h2>
+          <p class="section-text">Cada servicio se adapta al nivel y a los tiempos de quien lo pide.</p>
+
+          <div class="services__grid">
+            <article class="service-card">
+              <h3 class="service-card__title">Capacitaciones en informática</h3>
+              <p class="service-card__text">Talleres para docentes y equipos que quieren usar mejor sus herramientas digitales.</p>
+              <ul class="service-card__list">
+                <li>Google Workspace y aulas virtuales</li>
+                <li>Uso responsable de la IA en el aula</li>
+                <li>Introducción a la programación</li>
+              </ul>
+            </article>
+            <article class="service-card service-card--featured">
+              <h3 class="service-card__title">Clases de electrónica</h3>
+              <p class="service-card__text">Clases prácticas para estudiantes de secundaria técnica y de terminalidad.</p>
+              <ul class="service-card__list">
+                <li>Electrónica analógica y digital</li>
+                <li>Uso del multímetro y mediciones</li>
+                <li>Proyectos con Arduino</li>
+              </ul>
+            </article>
+            <article class="service-card">
+              <h3 class="service-card__title">Desarrollo web y apps</h3>
+              <p class="service-card__text">Sitios y aplicaciones simples, responsivas y fáciles de mantener.</p>
+              <ul class="service-card__list">
+                <li>Sitios institucionales y portfolios</li>
+                <li>Landing pages para emprendimientos</li>
+                <li>Apps para gestionar el aula</li>
+              </ul>
+            </article>
+            <article class="service-card">
+              <h3 class="service-card__title">Automatización de tareas</h3>
+              <p class="service-card__text">Menos tiempo en lo repetitivo, más tiempo para lo importante.</p>
+              <ul class="service-card__list">
+                <li>Planillas con fórmulas y reportes automáticos</li>
+                <li>Scripts en Python</li>
+                <li>Formularios conectados a planillas</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== CÓMO TRABAJO (lista ordenada + grid) ===== -->
+      <section class="process">
+        <div class="wrapper">
+          <span class="label"><span class="label__line"></span>Cómo trabajo</span>
+          <h2 class="section-title">De la primera charla al resultado</h2>
+          <p class="section-text">Un proceso en cuatro pasos, igual que cuando planifico una clase.</p>
+
+          <ol class="process__grid">
+            <li class="process__item">
+              <span class="process__number">1</span>
+              <h3 class="process__title">Escucho</h3>
+              <p class="process__text">Entiendo qué necesitás y para quién es.</p>
+            </li>
+            <li class="process__item">
+              <span class="process__number">2</span>
+              <h3 class="process__title">Bocetamos</h3>
+              <p class="process__text">Armo un prototipo o una planificación para validar la idea.</p>
+            </li>
+            <li class="process__item">
+              <span class="process__number">3</span>
+              <h3 class="process__title">Desarrollo</h3>
+              <p class="process__text">Construyo la solución y la pruebo en uso real.</p>
+            </li>
+            <li class="process__item">
+              <span class="process__number">4</span>
+              <h3 class="process__title">Acompaño</h3>
+              <p class="process__text">Explico cómo usarla y quedo disponible para ajustes.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- ===== FORMACIÓN ===== -->
+      <section class="training">
+        <div class="wrapper training__grid">
+          <img src="../assets/img/aula.svg" alt="Ilustración de un pizarrón con un circuito y código" class="training__img" />
+          <div>
+            <span class="label"><span class="label__line"></span>Formación continua</span>
+            <h2 class="section-title">Siempre aprendiendo</h2>
+            <p class="section-text">Actualmente me formo en:</p>
+            <ul class="training__list">
+              <li>Desarrollo web full stack (HTML, CSS, JavaScript, React y Node.js)</li>
+              <li>Ciberseguridad</li>
+              <li>Electrónica y microcontroladores</li>
+              <li>Inteligencia artificial aplicada a la educación</li>
+            </ul>
+            <a href="https://developer.mozilla.org/es/" target="_blank" rel="noopener" class="btn-outline-main">Mi documentación de referencia: MDN</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="footer">
+      <div class="wrapper footer__grid">
+        <p class="footer__text">© 2026 Enrique Alegre · Villa Carlos Paz, Córdoba</p>
+        <ul class="footer__links">
+          <li><a href="../index.html">Inicio</a></li>
+          <li><a href="./servicios.html">Servicios</a></li>
+          <li><a href="./contactos.html">Contacto</a></li>
+        </ul>
+        <p class="footer__text">Sitio hecho en la <a href="https://icaro.org.ar" target="_blank" rel="noopener">Diplomatura Full Stack de Ícaro</a></p>
+      </div>
+    </footer>
+
+    <!-- Bootstrap (JS): menú hamburguesa -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+      crossorigin="anonymous"
+    ></script>
+  </body>
+</html>

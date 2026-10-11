@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 400" role="img" aria-label="Escritorio con notebook y placa electrónica">
+  <!-- fondo -->
+  <circle cx="250" cy="190" r="170" fill="#dbe7f7"/>
+  <circle cx="400" cy="70" r="26" fill="#f5a524" opacity="0.85"/>
+  <!-- escritorio -->
+  <rect x="40" y="300" width="400" height="16" rx="8" fill="#14284b"/>
+  <rect x="70" y="316" width="12" height="70" fill="#14284b"/>
+  <rect x="398" y="316" width="12" height="70" fill="#14284b"/>
+  <!-- notebook -->
+  <rect x="110" y="150" width="210" height="135" rx="10" fill="#14284b"/>
+  <rect x="122" y="162" width="186" height="111" rx="4" fill="#0f1c33"/>
+  <rect x="136" y="178" width="70" height="8" rx="4" fill="#f5a524"/>
+  <rect x="136" y="196" width="120" height="8" rx="4" fill="#5b8def"/>
+  <rect x="152" y="214" width="96" height="8" rx="4" fill="#ffffff" opacity="0.8"/>
+  <rect x="152" y="232" width="60" height="8" rx="4" fill="#5b8def"/>
+  <rect x="136" y="250" width="40" height="8" rx="4" fill="#f5a524"/>
+  <path d="M90 285h250l-14 15H104z" fill="#2c4a7a"/>
+  <!-- placa electrónica -->
+  <rect x="340" y="236" width="90" height="64" rx="6" fill="#1f8a5b"/>
+  <rect x="356" y="250" width="24" height="18" rx="2" fill="#0f1c33"/>
+  <circle cx="400" cy="256" r="5" fill="#f5a524"/>
+  <circle cx="416" cy="256" r="5" fill="#ff6b6b"/>
+  <path d="M352 284h66M380 268v16M400 261v23" stroke="#c9f2dc" stroke-width="3" fill="none"/>
+  <!-- taza -->
+  <rect x="50" y="262" width="34" height="38" rx="6" fill="#f5a524"/>
+  <path d="M84 272h8a8 8 0 0 1 0 16h-8" stroke="#f5a524" stroke-width="5" fill="none"/>
+</svg>
