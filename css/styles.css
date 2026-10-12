@@ -315,12 +315,6 @@ body {
   background-color: var(--color-bg);
 }
 
-.areas__grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-  margin-top: 32px;
-}
 
 .area-card {
   display: flex;
@@ -353,7 +347,7 @@ body {
 
 .area-card__text {
   font-size: 0.9rem;
-  color: #010611;                     
+  color: #e8eefc;
 }
 
 /* ===== 8. CTA ===== */
