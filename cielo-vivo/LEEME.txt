@@ -1,14 +1,14 @@
 CIELO VIVO — Mapa estelar instalable (PWA)
 ==========================================
 
-Archivos: index.html, data.js, manifest.json, sw.js, icon-192.png, icon-512.png
+Archivos: index.html, data.js, manifest.json, sw.js, icon-192.png, icon-512.png y la carpeta leaflet/
 
 IMPORTANTE: el GPS, la brújula/giroscopio y la instalación sólo funcionan
 si la app se abre desde una dirección HTTPS. Opción gratis recomendada:
 
 GitHub Pages (5 minutos)
  1. Entrá a github.com y creá un repositorio público, p. ej. "cielo-vivo".
- 2. "Add file" > "Upload files": arrastrá los 6 archivos (no la carpeta) y "Commit".
+ 2. "Add file" > "Upload files": arrastrá todos los archivos y la carpeta leaflet y "Commit".
  3. Settings > Pages > Source: "Deploy from a branch", rama "main", carpeta "/ (root)" > Save.
  4. En 1-2 minutos queda en: https://TU-USUARIO.github.io/cielo-vivo/
 
@@ -20,6 +20,11 @@ Instalar
  Una vez instalada funciona sin internet.
 
 Uso
+ - 🗺️ mapa de calles (OpenStreetMap) o satelital con tu posición GPS en vivo y un cono
+   que muestra hacia dónde apuntás. Agrandado (⤢), tocá otro punto para ver el cielo desde ahí.
+ - 🌐 cielo completo (toda la bóveda en un círculo) y botones ＋/－ de zoom.
+ - 🔭 telescopio: con los sensores, centrá un astro en la mira y tocá "Ver en el telescopio"
+   (o tocá cualquier astro → 🔭). Elegí instrumento y aumento.
  - 🧭 activa/desactiva los sensores. Si el norte quedó corrido (pasa cerca de
    objetos metálicos), arrastrá el dedo a los costados para calibrarlo.
  - 🔍 busca planetas, estrellas, constelaciones y objetos Messier (con flecha guía).
