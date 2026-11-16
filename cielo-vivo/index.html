@@ -167,7 +167,7 @@ input[type=range]{width:100%}
 <!-- Panel: más -->
 <div class="panel" id="pMore">
   <button class="tbtn x" data-close>✕</button>
-  <h2>☰ Más opciones</h2>
+  <h2>☰ Más opciones <span style="font-size:12px;color:var(--dim)">· versión 13</span></h2>
   <div class="list">
     <button class="item" id="bSet">⚙️ Fecha, lugar y capas<small>Hora, coordenadas, Vía Láctea, contaminación lumínica, cielo andino…</small></button>
     <button class="item" id="bCal">🎯 Calibrar la brújula con una estrella<small>Corrige el error del norte apuntando a una estrella que reconozcas</small></button>
@@ -180,7 +180,7 @@ input[type=range]{width:100%}
 <!-- Panel: IA -->
 <div class="panel" id="pAI">
   <button class="tbtn x" data-close>✕</button>
-  <h2>🤖 Preguntale al cielo</h2>
+  <h2>🤖 Preguntale al cielo <span style="font-size:11px;color:var(--dim)">v13</span></h2>
   <div id="aiSetup">
     <p>El asistente usa <b>Gemini</b>, la IA de Google, con su plan gratuito. Necesitás una clave propia (se saca una sola vez, sin tarjeta):</p>
     <p>1. Entrá a <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--acc)">aistudio.google.com/apikey</a> con tu cuenta de Google.<br>2. Tocá <b>"Create API key"</b> (Crear clave de API) y copiala.<br>3. Pegala acá abajo.</p>
@@ -1672,7 +1672,7 @@ async function aiSend(img){
   const key=aiKey();if(!key){openAI();return}
   shutUp();$('aiIn').value='';aiAdd('me',esc(q||'¿Qué hay en esta foto?')+(img?'<br><img src="data:image/jpeg;base64,'+img+'" style="max-width:120px;border-radius:8px;margin-top:4px">':''));
   const wait=aiAdd('bot','');const ctrl=new AbortController();AI.ctrl=ctrl;AI.busy=true;const t0=Date.now();
-  const status=()=>{if(!wait.dataset.txt)wait.innerHTML=`<i>Pensando… ${Math.round((Date.now()-t0)/1000)} s</i> <button class="tbtn" style="margin-left:6px">✕ Cancelar</button>`;const b=wait.querySelector('button');if(b)b.onclick=()=>{ctrl.abort('user')}};
+  const status=()=>{if(!wait.dataset.txt)wait.innerHTML=`<i>Pensando… ${Math.round((Date.now()-t0)/1000)} s</i> <button class="tbtn" style="margin-left:6px">✕ Cancelar</button>`;const b=wait.querySelector('button');if(b)b.onclick=()=>{ctrl.abort('user');if(AI.ctrl&&AI.ctrl!==ctrl)AI.ctrl.abort('user')}};
   status();const tick=setInterval(status,1000);
   const parts=[{text:`[Datos del cielo en este momento]\n${skyContext()}\n\n[Pregunta]\n${q||'¿Qué astros se ven en esta foto? Identificalos usando los datos del cielo.'}`}];
   if(img)parts.push({inlineData:{mimeType:'image/jpeg',data:img}});
@@ -1682,24 +1682,28 @@ async function aiSend(img){
   try{
     // intento con ajuste de "pensamiento" corto; si el modelo no lo acepta, sin él
     const attempt=async(m,c)=>{try{return await geminiStream(key,m,body,show,c)}catch(e){if(e.status===400&&/think/i.test(e.message))return await geminiStream(key,m,body,show,c,false);throw e}};
-    let model=await pickModel(key);
-    try{txt=await attempt(model,ctrl)}
-    catch(e){
-      if(ctrl.signal.aborted&&ctrl.signal.reason==='user')throw new Error('Cancelado.');
-      if(e.status===429)throw new Error('Llegaste al límite de consultas gratis por ahora. Probá de nuevo en un rato o elegí otro modelo abajo.');
-      if(e.status===403||(e.status===400&&/API key/i.test(e.message)))throw new Error('La clave no funciona. Revisala con 🔑 Cambiar clave.');
-      if(e.status===404||ctrl.signal.aborted||e.name==='AbortError'||e.status>=500){ // modelo inexistente, caído o demasiado lento: probar uno más rápido
-        if(e.status===404){AI.model='';LS.set('aiModel','');AI.models=(AI.models||[]).filter(x=>x!==model)}
-        const lite=await pickModel(key,true);if(!lite||lite===model)throw new Error('La IA tardó demasiado en responder. Probá de nuevo.');
-        wait.dataset.txt='';const c2=new AbortController();AI.ctrl=c2;
-        txt=await attempt(lite,c2);if(txt)toast('Usé un modelo más rápido ('+lite+')',3000);
-      }else throw e;
+    // cadena de respaldo: el modelo elegido y, si está saturado, lento o sin cupo, los demás de tu cuenta
+    const first=await pickModel(key);const ms=await loadModels(key);
+    const chain=[first,...ms.filter(m=>m!==first&&!/lite/.test(m)).sort((x,y)=>verOf(y)-verOf(x)),...ms.filter(m=>m!==first&&/lite/.test(m)).sort((x,y)=>verOf(y)-verOf(x))].slice(0,4);
+    let lastErr=null,c=ctrl;
+    for(let k=0;k<chain.length;k++){
+      const m=chain[k];
+      try{txt=await attempt(m,c);if(k>0&&txt){toast('Gemini estaba saturado: respondí con '+m,3500)}lastErr=null;break}
+      catch(e){
+        if(ctrl.signal.aborted&&ctrl.signal.reason==='user')throw new Error('Cancelado.');
+        if(e.status===403||(e.status===400&&/API key/i.test(e.message)))throw new Error('La clave no funciona. Revisala con 🔑 Cambiar clave.');
+        const transitorio=e.status===429||e.status===404||e.status>=500||e.name==='AbortError'||(c.signal&&c.signal.aborted)||/overloaded|high demand|unavailable|timeout/i.test(e.message||'');
+        if(!transitorio)throw e;
+        lastErr=e;if(e.status===404){AI.models=(AI.models||[]).filter(x=>x!==m);if(AI.model===m){AI.model='';LS.set('aiModel','')}}
+        if(k<chain.length-1){wait.dataset.txt='';wait.innerHTML='<i>Gemini está saturado, pruebo con otro modelo…</i>';await new Promise(r=>setTimeout(r,1200));c=new AbortController();AI.ctrl=c}
+      }
     }
+    if(lastErr){const e=lastErr;throw new Error(e.status===429?'Se terminó el cupo gratis de consultas por ahora (se renueva cada día). Probá más tarde.':'Los servidores de Gemini están saturados en este momento. Probá de nuevo en unos minutos.')}
     if(!txt)throw new Error('La IA no devolvió texto. Probá reformular la pregunta.');
     AI.hist.push({role:'user',parts:[{text:q||'(foto)'}]},{role:'model',parts:[{text:txt}]});
     show(txt);
     if(AI.speak||AI.talk)speak(txt,()=>{if(AI.talk&&$('pAI').style.display==='block')setTimeout(()=>{if(AI.talk&&!rec)aiMic()},400)});
-  }catch(e){const m=e.message||'';wait.innerHTML='⚠️ '+esc(/Failed to fetch|NetworkError|network/i.test(m)?'Sin conexión a internet.':/abort/i.test(m)||e.name==='AbortError'?'La IA tardó demasiado en responder. Probá de nuevo.':m)}
+  }catch(e){const m=e.message||'';wait.innerHTML='⚠️ '+esc(/Failed to fetch|NetworkError|network/i.test(m)?'Sin conexión a internet.':/abort/i.test(m)||e.name==='AbortError'?'La IA tardó demasiado en responder. Probá de nuevo.':/^[A-Za-z]/.test(m)&&!/[áéíóúñ¿¡]/.test(m)?'Gemini respondió con un error: '+m:m)}
   clearInterval(tick);AI.busy=false;AI.ctrl=null;
 }
 
