@@ -198,7 +198,10 @@ input[type=range]{width:100%}
     </div>
     <div id="aiLog"></div>
     <div class="row" style="flex-wrap:nowrap"><input type="text" id="aiIn" placeholder="Escribí tu pregunta…"><button class="ib" id="aiMicB" title="Hablar">🎤</button><button class="ib" id="aiSendB" title="Enviar">➤</button></div>
-    <div class="row"><button class="tbtn" id="aiPhotoB">📷 Identificar en una foto</button><button class="tbtn" id="aiSpeak">🔊 Leer respuestas</button><button class="tbtn" id="aiChange">🔑 Cambiar clave</button><button class="tbtn" id="aiForget">🗑️ Borrar clave</button></div>
+    <div class="row"><button class="tbtn" id="aiPhotoB">📷 Identificar en una foto</button><button class="tbtn" id="aiSpeak">🔊 Leer respuestas</button><button class="tbtn" id="aiSysB">✏️ Instrucciones</button><button class="tbtn" id="aiChange">🔑 Cambiar clave</button><button class="tbtn" id="aiForget">🗑️ Borrar clave</button></div>
+    <div id="aiSysBox" style="display:none;margin-top:8px"><label style="font-size:13px;color:var(--dim)">Instrucciones que recibe la IA (el "prompt de sistema"). Podés cambiarlas a tu gusto:</label>
+      <textarea id="aiSysTxt" style="width:100%;height:42vh;background:#0a1030;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:13px"></textarea>
+      <div class="row"><button class="pbtn acc" id="aiSysSave">Guardar</button><button class="tbtn" id="aiSysReset">Volver al original</button><button class="tbtn" id="aiSysCopy">📋 Copiar</button></div></div>
     <input type="file" id="aiFile" accept="image/*" style="display:none">
   </div>
 </div>
@@ -1583,7 +1586,7 @@ function aiAdd(role,html){const d=document.createElement('div');d.className='msg
 function openAI(prefill){
   openP('pAI');$('aiSetup').style.display=aiKey()?'none':'block';$('aiChat').style.display=aiKey()?'block':'none';
   $('aiSpeak').classList.toggle('on',AI.speak);
-  if(!$('aiLog').children.length&&aiKey())aiAdd('bot','¡Hola! Soy el asistente de Cielo Vivo. Sé qué hay en tu cielo ahora mismo y hacia dónde estás apuntando. Preguntame lo que quieras, escribiendo o con el 🎤.');
+  if(!$('aiLog').children.length&&aiKey())aiAdd('bot','¡Hola! Soy Astro, el asistente de Cielo Vivo. Sé qué hay en tu cielo ahora mismo y hacia dónde estás apuntando. Preguntame lo que quieras, escribiendo o con el 🎤.');
   if(prefill){$('aiIn').value=prefill;aiSend()}
 }
 async function pickModel(key){
@@ -1617,7 +1620,8 @@ function skyContext(){
     S.target?`Objeto seleccionado: ${S.target.label}.`:'',
     SC.open&&SC.obj?`Está mirando por el simulador de telescopio: ${objLabel(SC.obj)}, ${curScope().n} a ${SC.mag}×.`:''].filter(Boolean).join('\n');
 }
-const AI_SYS=`Sos el asistente de "Cielo Vivo", una app de astronomía hecha por un profesor de informática de Villa Carlos Paz (Córdoba, Argentina). Respondé en español rioplatense, claro y cálido, como un buen divulgador. Sé breve (en general menos de 120 palabras) salvo que te pidan algo largo, como una actividad o planificación de clase. Usá los datos del cielo que te paso para responder sobre lo que el usuario ve: decí hacia dónde mirar con puntos cardinales y altura en grados. No inventes datos; si no estás seguro, decilo. Si te piden actividades para el aula, que sean prácticas y usen la app. Nunca recomiendes mirar el Sol sin filtro solar certificado.`;
+const AI_SYS_DEF="Sos \"Astro\", el asistente de Cielo Vivo, una app de astronomía creada por un profesor de informática de Villa Carlos Paz (Córdoba, Argentina). La usan curiosos, docentes y estudiantes de secundaria.\n\nCÓMO HABLÁS\n- Español rioplatense (voseo), claro, cálido y entusiasta, como un buen divulgador.\n- Respuestas cortas para leer en el celular: 2 a 5 oraciones o una lista breve. Solo te extendés si te piden una actividad, planificación, quiz o explicación detallada.\n- Explicá los términos técnicos con palabras simples la primera vez que los uses.\n\nCÓMO USÁS LOS DATOS\n- Con cada pregunta recibís un bloque [Datos del cielo en este momento], calculado por la app: lugar, fecha y hora, altura del Sol, fase de la Luna, hacia dónde apunta el usuario, constelaciones y objetos en pantalla (con altura y acimut) y planetas sobre el horizonte. Tomalo como la verdad sobre el cielo actual.\n- Para indicar dónde mirar, usá puntos cardinales (N, NE, E…) y la altura en grados; podés agregar una referencia con la mano: el puño con el brazo extendido mide unos 10°.\n- Si algo está bajo el horizonte, es de día o la Luna llena tapa lo débil, decilo.\n- Si la fecha no es la actual (recreación histórica de un monumento), aclaralo y respondé para esa época.\n- No inventes datos. Si un dato no está en el bloque y no estás seguro, decí que no lo sabés con certeza.\n\nFOTOS\n- Si recibís una foto, identificá los astros comparando con los datos del cielo y la dirección de la cámara. Si no se distingue bien, decilo y sugerí cómo sacar una mejor (sin luces cerca, celular apoyado, modo noche).\n\nCONTENIDO\n- Podés contar mitos y leyendas: aclarales de qué cultura son. Incluí las de los pueblos originarios de Sudamérica (incas, mapuches, guaraníes, qom, entre otros) cuando existan, con respeto y sin inventar.\n- Separá siempre lo que es dato científico de lo que es mito o hipótesis (por ejemplo, las alineaciones de las pirámides).\n\nPARA DOCENTES\n- Si te piden una actividad o planificación: título, curso sugerido, duración, objetivos, materiales (incluida la app Cielo Vivo y qué botones usar), pasos, preguntas de cierre y una forma simple de evaluar.\n\nSEGURIDAD\n- Nunca recomiendes mirar el Sol sin un filtro solar certificado, ni a simple vista ni con binoculares o telescopio.\n- Para salidas nocturnas con estudiantes, recordá ir acompañados y a lugares seguros.";
+const aiSys=()=>LS.get('aiSys','')||AI_SYS_DEF;
 async function aiSend(img){
   const q=$('aiIn').value.trim();if(!q&&!img)return;if(AI.busy)return;const key=aiKey();if(!key){openAI();return}
   $('aiIn').value='';aiAdd('me',esc(q||'¿Qué hay en esta foto?')+(img?'<br><img src="data:image/jpeg;base64,'+img+'" style="max-width:120px;border-radius:8px;margin-top:4px">':''));
@@ -1628,7 +1632,7 @@ async function aiSend(img){
   try{
     const model=await pickModel(key);
     const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},
-      body:JSON.stringify({systemInstruction:{parts:[{text:AI_SYS}]},contents,generationConfig:{temperature:0.6,maxOutputTokens:900}})});
+      body:JSON.stringify({systemInstruction:{parts:[{text:aiSys()}]},contents,generationConfig:{temperature:0.6,maxOutputTokens:900}})});
     const j=await r.json();
     if(!r.ok){const m=j.error&&j.error.message||'';
       if(r.status===429)throw new Error('Llegaste al límite de consultas gratis por ahora. Probá de nuevo en un rato.');
@@ -1666,6 +1670,10 @@ $('aiChange').onclick=()=>{$('aiSetup').style.display='block';$('aiChat').style.
 $('aiForget').onclick=()=>{LS.set('aiKey','');AI.hist=[];$('aiLog').innerHTML='';openAI();toast('Clave borrada de este dispositivo')};
 document.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{$('aiIn').value=b.dataset.q;aiSend()});
 $('bAI').onclick=()=>openAI();
+$('aiSysB').onclick=()=>{const b=$('aiSysBox');const on=b.style.display==='none';b.style.display=on?'block':'none';if(on)$('aiSysTxt').value=aiSys()};
+$('aiSysSave').onclick=()=>{const t=$('aiSysTxt').value.trim();LS.set('aiSys',t===AI_SYS_DEF?'':t);AI.hist=[];toast('✔ Instrucciones guardadas');$('aiSysBox').style.display='none'};
+$('aiSysReset').onclick=()=>{LS.set('aiSys','');$('aiSysTxt').value=AI_SYS_DEF;AI.hist=[];toast('Instrucciones originales restauradas')};
+$('aiSysCopy').onclick=()=>{navigator.clipboard.writeText($('aiSysTxt').value).then(()=>toast('📋 Copiado')).catch(()=>toast('No se pudo copiar'))};
 
 $('bAI2').onclick=()=>{$('pMore').style.display='none';openAI()};
 // ======================= Inicio =======================
