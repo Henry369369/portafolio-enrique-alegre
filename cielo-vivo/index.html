@@ -203,6 +203,8 @@ input[type=range]{width:100%}
   <label class="chk"><input type="checkbox" id="cMes"> Objetos Messier (nebulosas, cúmulos, galaxias)</label>
   <label class="chk"><input type="checkbox" id="cGround" checked> Suelo y horizonte</label>
   <div class="row"><label>Suelo:</label><button class="tbtn" data-gm="sat">🛰️ Satélite</button><button class="tbtn" data-gm="calles">🗺️ Calles</button><button class="tbtn" data-gm="liso">Liso</button></div>
+  <div class="row"><label>Ver el suelo desde:</label><button class="tbtn" data-gh="pie">🚶 2 m</button><button class="tbtn" data-gh="dron">🛸 40 m</button><button class="tbtn" data-gh="avion">✈️ 400 m</button></div>
+  <label class="chk"><input type="checkbox" id="cGnight" checked> Oscurecer un poco el suelo de noche</label>
   <label class="chk"><input type="checkbox" id="cMw" checked> Vía Láctea</label>
   <label class="chk"><input type="checkbox" id="cAndes"> Cielo andino: constelaciones oscuras incas</label>
   <label class="chk"><input type="checkbox" id="cIss" checked> Estación Espacial Internacional en vivo</label>
@@ -410,7 +412,7 @@ const S={
   jd:jdNow(),live:true,play:false,
   az:180,alt:35,fov:LS.get('fov',80),
   sensor:false,azOffset:LS.get('azOff',0),
-  layers:Object.assign({lines:true,cons:true,names:true,mes:false,ground:true,day:true,red:false,grid:false,gmap:'sat',mw:true,andes:false,iss:true,bortle:5},LS.get('layers',{})),
+  layers:Object.assign({lines:true,cons:true,names:true,mes:false,ground:true,day:true,red:false,grid:false,gmap:'sat',mw:true,andes:false,iss:true,bortle:5,gh:'dron',gnight:true},LS.get('layers',{})),
   gps:null,followGPS:LS.get('follow',true),allsky:false,
   site:null,target:null
 };
@@ -779,7 +781,7 @@ function selectTarget(x){
 function fillSet(){
   $('iLat').value=S.lat.toFixed(4);$('iLon').value=S.lon.toFixed(4);
   const d=fmtTime(S.jd).d;$('iY').value=d.Y;$('iM').value=d.M;$('iD').value=d.D;$('iH').value=d.h;$('iMi').value=d.mi;
-  const L=S.layers;$('cLines').checked=L.lines;$('cCons').checked=L.cons;$('cNames').checked=L.names;$('cMes').checked=L.mes;$('cGround').checked=L.ground;$('cDay').checked=L.day;$('cRed').checked=L.red;$('cGrid').checked=L.grid;markGm();$('cMw').checked=L.mw;$('cAndes').checked=L.andes;$('cIss').checked=L.iss;$('iBortle').value=L.bortle;$('bortleTxt').textContent=BORTLE[L.bortle];
+  const L=S.layers;$('cLines').checked=L.lines;$('cCons').checked=L.cons;$('cNames').checked=L.names;$('cMes').checked=L.mes;$('cGround').checked=L.ground;$('cDay').checked=L.day;$('cRed').checked=L.red;$('cGrid').checked=L.grid;markGm();$('cMw').checked=L.mw;$('cGnight').checked=L.gnight;$('cAndes').checked=L.andes;$('cIss').checked=L.iss;$('iBortle').value=L.bortle;$('bortleTxt').textContent=BORTLE[L.bortle];
 }
 $('bApply').onclick=()=>{
   const lat=parseFloat($('iLat').value),lon=parseFloat($('iLon').value);
@@ -788,9 +790,10 @@ $('bApply').onclick=()=>{
   if(isFinite(Y)&&M>=1&&M<=12&&D>=1&&D<=31){const off=S.site?S.lon/15:-new Date().getTimezoneOffset()/60;S.jd=jdFromYMDh(Y,M,D,h+mi/60-off);S.live=false}
   $('pSet').style.display='none';toast('Fecha y lugar actualizados');
 };
-[['cMw','mw'],['cAndes','andes'],['cIss','iss'],['cGrid','grid'],['cLines','lines'],['cCons','cons'],['cNames','names'],['cMes','mes'],['cGround','ground'],['cDay','day'],['cRed','red']].forEach(([id,k])=>$(id).onchange=e=>{S.layers[k]=e.target.checked;LS.set('layers',S.layers);applyRed()});
+[['cGnight','gnight'],['cMw','mw'],['cAndes','andes'],['cIss','iss'],['cGrid','grid'],['cLines','lines'],['cCons','cons'],['cNames','names'],['cMes','mes'],['cGround','ground'],['cDay','day'],['cRed','red']].forEach(([id,k])=>$(id).onchange=e=>{S.layers[k]=e.target.checked;LS.set('layers',S.layers);applyRed()});
 document.querySelectorAll('[data-gm]').forEach(b=>b.onclick=()=>{S.layers.gmap=b.dataset.gm;LS.set('layers',S.layers);markGm()});
-function markGm(){document.querySelectorAll('[data-gm]').forEach(b=>b.classList.toggle('on',b.dataset.gm===S.layers.gmap))}
+document.querySelectorAll('[data-gh]').forEach(b=>b.onclick=()=>{S.layers.gh=b.dataset.gh;LS.set('layers',S.layers);markGm()});
+function markGm(){document.querySelectorAll('[data-gh]').forEach(b=>b.classList.toggle('on',b.dataset.gh===S.layers.gh));document.querySelectorAll('[data-gm]').forEach(b=>b.classList.toggle('on',b.dataset.gm===S.layers.gmap))}
 function applyRed(){$('red').style.display=S.layers.red?'block':'none'}
 function saveLoc(){LS.set('lat',S.lat);LS.set('lon',S.lon);LS.set('locName',S.locName)}
 let watchId=null,gpsErrShown=false;
@@ -863,17 +866,21 @@ $('siteBack').onclick=()=>{leaveSite();toast('De vuelta en tu cielo de hoy');if(
 // ======================= Suelo con mapa real (satélite / calles) =======================
 const TILE={sat:z=>(x,y)=>`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`,
             calles:z=>(x,y)=>`https://tile.openstreetmap.org/${z}/${x}/${y}.png`};
-function mkGT(z,n){const c=document.createElement('canvas');c.width=c.height=n*256;return{canvas:c,ctx:c.getContext('2d'),ready:false,gen:0,src:null,lat:null,lon:null,z,n,tx0:0,ty0:0}}
-const GTS=[mkGT(15,6),mkGT(18,8)]; // lejos (±3 km) y cerca (±500 m, ~0,6 m por píxel)
+// Niveles de detalle: cuanto más cerca, más resolución (como Google Earth)
+// z18 ≈ 0,5 m/píxel · z17 ≈ 1 m · z15 ≈ 4 m · z13 ≈ 16 m
+function mkGT(z,n,r0,r1,reb){const c=document.createElement('canvas');c.width=c.height=n*256;return{canvas:c,ctx:c.getContext('2d'),ready:false,gen:0,src:null,lat:null,lon:null,z,n,tx0:0,ty0:0,r0,r1,reb,loaded:0,total:0}}
+const GTS=[mkGT(13,6,3000,16000,3000),mkGT(15,6,800,3500,700),mkGT(17,8,130,950,220),mkGT(18,6,0,200,100)];
 function merc(lat,lon,z){const n=2**z,s=Math.sin(clamp(lat,-85,85)*D2R);return{x:(lon+180)/360*256*n,y:(0.5-Math.log((1+s)/(1-s))/(4*Math.PI))*256*n}}
 function buildGroundTex(G,lat,lon,src){
-  const gen=++G.gen,z=G.z,p=merc(lat,lon,z),h=G.n/2;G.src=src;G.lat=lat;G.lon=lon;G.ready=false;
+  const gen=++G.gen,z=G.z,p=merc(lat,lon,z),h=G.n/2;G.src=src;G.lat=lat;G.lon=lon;G.ready=false;G.loaded=0;G.total=G.n*G.n;
   G.tx0=Math.floor(p.x/256)-h;G.ty0=Math.floor(p.y/256)-h;
   G.ctx.fillStyle=src==='sat'?'#1c2618':'#e8e4dc';G.ctx.fillRect(0,0,G.canvas.width,G.canvas.height);
   const url=TILE[src](z);
-  for(let j=0;j<G.n;j++)for(let i=0;i<G.n;i++){const im=new Image();im.crossOrigin='anonymous';
-    im.onload=()=>{if(gen!==G.gen)return;G.ctx.drawImage(im,i*256,j*256);G.ready=true;G.loads=(G.loads||0)+1};
-    im.onerror=()=>{if(im.crossOrigin){im.crossOrigin=null;im.src=url(G.tx0+i,G.ty0+j)}};
+  // primero los mosaicos del centro (lo que tenés cerca)
+  const order=[];for(let j=0;j<G.n;j++)for(let i=0;i<G.n;i++)order.push([i,j,Math.hypot(i+0.5-h,j+0.5-h)]);order.sort((a,b)=>a[2]-b[2]);
+  for(const [i,j] of order){const im=new Image();im.crossOrigin='anonymous';
+    im.onload=()=>{if(gen!==G.gen)return;G.ctx.drawImage(im,i*256,j*256);G.ready=true;G.loaded++;G.loads=(G.loads||0)+1};
+    im.onerror=()=>{if(im.crossOrigin){im.crossOrigin=null;im.src=url(G.tx0+i,G.ty0+j)}else if(gen===G.gen)G.loaded++};
     im.src=url(G.tx0+i,G.ty0+j)}
 }
 function drawTri(img,P0,P1,P2,u0,v0,u1,v1,u2,v2){
@@ -881,35 +888,42 @@ function drawTri(img,P0,P1,P2,u0,v0,u1,v1,u2,v2){
   const dx1=P1.x-P0.x,dy1=P1.y-P0.y,dx2=P2.x-P0.x,dy2=P2.y-P0.y;
   const a=(dx1*dv2-dx2*dv1)/det,b=(dy1*dv2-dy2*dv1)/det,c=(dx2*du1-dx1*du2)/det,d=(dy2*du1-dy1*du2)/det;
   const e=P0.x-a*u0-c*v0,f=P0.y-b*u0-d*v0;
-  const mx=(P0.x+P1.x+P2.x)/3,my=(P0.y+P1.y+P2.y)/3,ex=p=>[p.x+(p.x-mx)*0.03+Math.sign(p.x-mx)*0.5,p.y+(p.y-my)*0.03+Math.sign(p.y-my)*0.5];
+  const mx=(P0.x+P1.x+P2.x)/3,my=(P0.y+P1.y+P2.y)/3,ex=p=>[p.x+Math.sign(p.x-mx)*0.7,p.y+Math.sign(p.y-my)*0.7];
   ctx.save();ctx.beginPath();ctx.moveTo(...ex(P0));ctx.lineTo(...ex(P1));ctx.lineTo(...ex(P2));ctx.closePath();ctx.clip();
   ctx.transform(a,b,c,d,e,f);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(img,0,0);ctx.restore();
 }
-const GH=40; // altura virtual del observador (m): cuanto más abajo mirás, más cerca ves
-function depsFor(rmin,rmax){const out=[];const d0=rmin<=0?90:Math.atan(GH/rmin)*R2D,d1=Math.atan(GH/rmax)*R2D;const N=12;for(let i=0;i<=N;i++){const t=i/N;out.push(d0+(d1-d0)*(1-Math.pow(1-t,1.6)))}return out}
-const RINGS=[{G:0,deps:depsFor(380,3000)},{G:1,deps:depsFor(0,420)}];
-const GCACHE={c:document.createElement('canvas'),key:''};
+const GHEIGHTS={pie:2,dron:40,avion:400};
+const GCACHE={c:document.createElement('canvas'),key:'',lastChange:0,fine:false};
+function groundProgress(){let l=0,t=0;for(const G of GTS){if(!G.src)continue;l+=G.loaded;t+=G.total}return t?l/t:1}
 function drawGroundMap(dayF){
   const src=S.layers.gmap;if(!src||src==='liso')return;
-  for(const G of GTS){const lim=G.z===18?120:600;
-    if(G.src!==src||G.lat==null||Math.hypot((S.lat-G.lat)*111320,(S.lon-G.lon)*111320*Math.cos(S.lat*D2R))>lim)buildGroundTex(G,S.lat,S.lon,src)}
-  const key=[...camF,...camU].map(x=>x.toFixed(3)).join()+S.fov.toFixed(1)+W+'x'+H+GTS.map(G=>G.gen+':'+(G.loads||0)).join()+S.lat.toFixed(5)+S.lon.toFixed(5)+Math.round(dayF*20);
-  if(key!==GCACHE.key){
-    const C=GCACHE.c;if(C.width!==cv.width||C.height!==cv.height){C.width=cv.width;C.height=cv.height}
-    const cc=C.getContext('2d');cc.setTransform(DPR,0,0,DPR,0,0);cc.clearRect(0,0,W,H);
-    const main=ctx;ctx=cc;try{renderGroundMap(dayF,src)}finally{ctx=main}
-    GCACHE.key=key;
-  }
+  for(const G of GTS){if(G.src!==src||G.lat==null||Math.hypot((S.lat-G.lat)*111320,(S.lon-G.lon)*111320*Math.cos(S.lat*D2R))>G.reb)buildGroundTex(G,S.lat,S.lon,src)}
+  const now=performance.now();
+  const key=[...camF,...camU].map(x=>x.toFixed(3)).join()+S.fov.toFixed(1)+W+'x'+H+GTS.map(G=>G.gen+':'+(G.loads||0)).join()+S.lat.toFixed(5)+S.lon.toFixed(5)+Math.round(dayF*20)+S.layers.gh+S.layers.gnight;
+  if(key!==GCACHE.key){GCACHE.key=key;GCACHE.lastChange=now;renderGroundCache(dayF,src,false)}
+  else if(!GCACHE.fine&&now-GCACHE.lastChange>220)renderGroundCache(dayF,src,true); // quieto: versión de alta calidad
   ctx.drawImage(GCACHE.c,0,0,W,H);
-  const pn=project([0,0,-1]);if((GTS[0].ready||GTS[1].ready)&&pn&&pn.cz>-0.3&&inScr(pn)){ctx.fillStyle='#2f7bff';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(pn.x,pn.y,7,0,7);ctx.fill();ctx.stroke();
+  const pn=project([0,0,-1]);if(GTS.some(G=>G.ready)&&pn&&pn.cz>-0.3&&inScr(pn)){ctx.fillStyle='#2f7bff';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(pn.x,pn.y,7,0,7);ctx.fill();ctx.stroke();
     ctx.fillStyle='#fff';ctx.font='700 12px system-ui';ctx.textAlign='center';ctx.fillText(S.site?S.site.name:'Vos estás acá',pn.x,pn.y-12);ctx.textAlign='left'}
+  const pr=groundProgress();if(pr<0.98&&camF[2]<0.3){ctx.fillStyle='rgba(5,8,22,.75)';ctx.fillRect(W/2-90,H-112,180,22);ctx.fillStyle='#cfd8f5';ctx.font='12px system-ui';ctx.textAlign='center';ctx.fillText(`${src==='sat'?'🛰️ Imagen satelital':'🗺️ Mapa'} ${Math.round(pr*100)}%`,W/2,H-97);ctx.textAlign='left'}
 }
-function renderGroundMap(dayF,src){
-  const AZS=[];for(let a=0;a<=360;a+=15)AZS.push(a);
+function renderGroundCache(dayF,src,fine){
+  const C=GCACHE.c;if(C.width!==cv.width||C.height!==cv.height){C.width=cv.width;C.height=cv.height}
+  const cc=C.getContext('2d');cc.setTransform(DPR,0,0,DPR,0,0);cc.clearRect(0,0,W,H);
+  const main=ctx;ctx=cc;try{renderGroundMap(dayF,src,fine)}finally{ctx=main}
+  GCACHE.fine=fine;
+}
+function renderGroundMap(dayF,src,fine){
+  const GH=GHEIGHTS[S.layers.gh]||40;
+  const azStep=fine?6:15,NR=fine?14:7;
+  const AZS=[];for(let a=0;a<=360;a+=azStep)AZS.push(a);
   const on=q=>q.p.x>-300&&q.p.x<W+300&&q.p.y>-300&&q.p.y<H+300;
-  for(const ring of RINGS){const G=GTS[ring.G];if(!G.ready)continue;
+  for(const G of GTS){if(!G.ready)continue;
     const z=G.z,mpp=156543.03392*Math.cos(S.lat*D2R)/2**z,o=merc(S.lat,S.lon,z),u0=o.x-G.tx0*256,v0=o.y-G.ty0*256;
-    const grid=ring.deps.map(dep=>{const dist=dep>=89.9?0:GH/Math.tan(dep*D2R);return AZS.map(az=>{const p=project(altaz2v(-dep,az));
+    // anillos de distancia: más densos cerca (en ángulo de depresión)
+    const d0=G.r0<=0?90:Math.atan(GH/G.r0)*R2D,d1=Math.atan(GH/G.r1)*R2D;
+    const deps=[];for(let i=0;i<=NR;i++){const t=i/NR;deps.push(d0+(d1-d0)*(1-Math.pow(1-t,1.7)))}
+    const grid=deps.map(dep=>{const dist=dep>=89.9?0:GH/Math.tan(dep*D2R);return AZS.map(az=>{const p=project(altaz2v(-dep,az));
       return{p:p&&p.cz>-0.35?p:null,u:u0+dist*Math.sin(az*D2R)/mpp,v:v0-dist*Math.cos(az*D2R)/mpp}})});
     for(let i=0;i<grid.length-1;i++)for(let j=0;j<AZS.length-1;j++){
       const A=grid[i][j],B=grid[i][j+1],C=grid[i+1][j+1],D=grid[i+1][j];if(!A.p||!B.p||!C.p||!D.p)continue;if(!on(A)&&!on(B)&&!on(C)&&!on(D))continue;
@@ -918,8 +932,7 @@ function renderGroundMap(dayF,src){
       drawTri(G.canvas,A.p,C.p,D.p,A.u,A.v,C.u,C.v,D.u,D.v);
     }
   }
-  if(!GTS[0].ready&&!GTS[1].ready)return;
-  const dark=0.55*(1-dayF);if(dark>0.02)drawGround(dayF,`rgba(0,0,12,${dark})`,true);
+  const dark=S.layers.gnight?0.32*(1-dayF):0;if(dark>0.02)drawGround(dayF,`rgba(0,0,12,${dark})`,true);
 }
 
 // ======================= Fotos reales (Wikipedia / NASA / ESA) =======================
