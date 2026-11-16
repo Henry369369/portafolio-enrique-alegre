@@ -82,6 +82,11 @@ input[type=number],input[type=text],input[type=search]{background:#0a1030;border
 .bar{position:fixed;left:8px;right:8px;top:calc(env(safe-area-inset-top) + 112px);z-index:8;display:none;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--acc);border-radius:12px;padding:8px 10px;font-size:13px;text-align:center}
 #tourBar{top:auto;bottom:calc(env(safe-area-inset-bottom) + 58px)}
 input[type=range]{width:100%}
+#bAI{position:fixed;right:5px;top:calc(50% + 58px);z-index:6;width:52px;height:52px;border-radius:50%;font-size:24px;border:1px solid var(--acc);background:var(--panel);box-shadow:0 2px 12px #0008;cursor:pointer}
+#aiLog{max-height:48vh;overflow:auto;display:flex;flex-direction:column;gap:8px;margin:8px 0}
+.msg{padding:9px 12px;border-radius:12px;font-size:14px;line-height:1.45;max-width:92%}
+.msg.me{align-self:flex-end;background:#2a3a7a}.msg.bot{align-self:flex-start;background:#121c44;border:1px solid var(--line)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}.chips .tbtn{flex:none}
 #toast{position:fixed;top:calc(env(safe-area-inset-top) + 70px);left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);padding:8px 14px;border-radius:10px;font-size:13px;z-index:50;display:none;max-width:90vw;text-align:center}
 #hint{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 64px);font-size:12px;color:var(--dim);z-index:4;text-shadow:0 1px 3px #000;pointer-events:none;text-align:center;width:90vw}
 </style>
@@ -127,6 +132,7 @@ input[type=range]{width:100%}
 <div class="bar" id="gameBar"><span id="gameTxt"></span><button class="tbtn" id="gameHint">💡 Pista (−30)</button><button class="tbtn" id="gameSkip">Saltar</button><button class="tbtn" id="gameEnd">✕</button></div>
 <div class="bar" id="tourBar"><span id="tourTxt" style="flex-basis:100%"></span><button class="tbtn" id="tourPrev">⏮</button><button class="tbtn" id="tourPlay">⏸</button><button class="tbtn" id="tourNext">⏭</button><button class="tbtn" id="tourEnd">✕ Terminar</button></div>
 <div id="reticle"></div>
+<button id="bAI" title="Preguntale a la IA">🤖</button>
 <button class="pbtn" id="scopeBtn">🔭 Ver en el telescopio</button>
 <div id="scope"><canvas id="scopeCv"></canvas>
   <div id="scHead"><div id="scTitle"></div><div style="font-size:12px;color:var(--dim)">Simulador de telescopio</div></div>
@@ -166,8 +172,34 @@ input[type=range]{width:100%}
     <button class="item" id="bSet">⚙️ Fecha, lugar y capas<small>Hora, coordenadas, Vía Láctea, contaminación lumínica, cielo andino…</small></button>
     <button class="item" id="bCal">🎯 Calibrar la brújula con una estrella<small>Corrige el error del norte apuntando a una estrella que reconozcas</small></button>
     <button class="item" id="bGame">🎮 Desafío: encontrá el astro<small>5 rondas con puntaje, ideal para jugar en grupo</small></button>
+    <button class="item" id="bAI2">🤖 Preguntale a la IA<small>Un asistente que sabe qué hay en tu cielo ahora; también responde por voz y con fotos</small></button>
     <button class="item" id="bTour">🎧 Recorrido guiado con voz<small>Te lleva por lo más lindo del cielo de esta noche</small></button>
     <button class="item" id="bInstall" style="display:none">⬇️ Instalar la app<small>Para usarla sin internet y a pantalla completa</small></button>
+  </div>
+</div>
+<!-- Panel: IA -->
+<div class="panel" id="pAI">
+  <button class="tbtn x" data-close>✕</button>
+  <h2>🤖 Preguntale al cielo</h2>
+  <div id="aiSetup">
+    <p>El asistente usa <b>Gemini</b>, la IA de Google, con su plan gratuito. Necesitás una clave propia (se saca una sola vez, sin tarjeta):</p>
+    <p>1. Entrá a <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--acc)">aistudio.google.com/apikey</a> con tu cuenta de Google.<br>2. Tocá <b>"Create API key"</b> (Crear clave de API) y copiala.<br>3. Pegala acá abajo.</p>
+    <input type="text" id="aiKeyIn" placeholder="Pegá tu clave (empieza con AIza…)" autocomplete="off">
+    <div class="row"><button class="pbtn acc" id="aiSaveKey">Guardar clave</button></div>
+    <p style="font-size:12px;color:var(--dim)">La clave queda guardada solo en este dispositivo y se usa únicamente para hablar con Google. No la compartas. El plan gratis tiene un límite de consultas por día, y Google puede usar las consultas gratuitas para mejorar sus productos: no escribas datos personales.</p>
+  </div>
+  <div id="aiChat" style="display:none">
+    <div class="chips">
+      <button class="tbtn" data-q="¿Qué estoy viendo ahora en la pantalla?">¿Qué estoy viendo?</button>
+      <button class="tbtn" data-q="¿Qué es lo más lindo para ver esta noche a simple vista y hacia dónde miro?">¿Qué miro hoy?</button>
+      <button class="tbtn" data-q="Contame una leyenda o mito sobre lo que estoy mirando, incluida alguna de los pueblos originarios de Sudamérica si existe.">Una leyenda</button>
+      <button class="tbtn" data-q="Armame una actividad de 40 minutos para alumnos de secundaria usando la app Cielo Vivo y el cielo de esta noche, con objetivos, pasos y preguntas de cierre.">Actividad para clase</button>
+      <button class="tbtn" data-q="Haceme 5 preguntas de opción múltiple sobre lo que se ve en el cielo esta noche, con las respuestas al final.">Quiz</button>
+    </div>
+    <div id="aiLog"></div>
+    <div class="row" style="flex-wrap:nowrap"><input type="text" id="aiIn" placeholder="Escribí tu pregunta…"><button class="ib" id="aiMicB" title="Hablar">🎤</button><button class="ib" id="aiSendB" title="Enviar">➤</button></div>
+    <div class="row"><button class="tbtn" id="aiPhotoB">📷 Identificar en una foto</button><button class="tbtn" id="aiSpeak">🔊 Leer respuestas</button><button class="tbtn" id="aiChange">🔑 Cambiar clave</button><button class="tbtn" id="aiForget">🗑️ Borrar clave</button></div>
+    <input type="file" id="aiFile" accept="image/*" style="display:none">
   </div>
 </div>
 <!-- Panel: esta noche -->
@@ -730,8 +762,10 @@ function showInfo(o){
   else if(o.kind==='mes'){const m=o.m;h=`<b>${m.id}${m.alt?' — '+m.alt:''}</b><br>${m.type} · magnitud ${m.mag}<br>${pos}`}
   else if(o.kind==='iss')h=`<b>🛰️ Estación Espacial Internacional</b><br>A ${Math.round(o.L.h)} km de altura y ${Math.round(o.L.range)} km de vos · da una vuelta a la Tierra cada 90 minutos.<br>${pos}`;
   else if(o.kind==='andes')h=`<b>${o.a.n}</b><br>${o.a.t}<br><span style="font-size:12px;color:var(--dim)">Constelación oscura inca (manchas de polvo de la Vía Láctea). Posición aproximada; las figuras varían según las fuentes (Urton, 1981).</span>`;
-  const canScope=o.kind!=='iss'&&o.kind!=='andes';if(canScope)h+=`<div style="margin-top:8px"><button class="pbtn acc" id="infoScope">🔭 Ver en el telescopio</button></div>`;
+  const canScope=o.kind!=='iss'&&o.kind!=='andes';h+=`<div class="row" style="margin-top:8px">${canScope?'<button class="pbtn acc" id="infoScope">🔭 Telescopio</button>':''}<button class="pbtn" id="infoAI">🤖 Preguntar a la IA</button></div>`;
   $('infoBody').innerHTML=h;$('info').style.display='block';if(canScope)$('infoScope').onclick=()=>openScope(o);
+  const nm=o.kind==='star'?(o.s.name||o.s.des||'esta estrella'):o.kind==='planet'?o.pl.n:o.kind==='mes'?o.m.id+(o.m.alt?' ('+o.m.alt+')':''):o.kind==='moon'?'la Luna':o.kind==='sun'?'el Sol':o.kind==='iss'?'la Estación Espacial':o.a.n;
+  $('infoAI').onclick=()=>{$('info').style.display='none';openAI(`Contame sobre ${nm}: qué es, curiosidades y cómo verlo mejor desde acá.`)};
 }
 function moonWaxing(){const a=planetVecJ2000('sol',S.jd).v,P=precessionMatrix(S.jd);const sD=mv(P,a);const m1=moonVecOfDate(S.jd).v,m2=moonVecOfDate(S.jd+0.1).v;return dot(m2,sD)<dot(m1,sD)}
 function phaseName(f,crec){if(f<0.03)return'Luna nueva';if(f>0.97)return'Luna llena';if(Math.abs(f-0.5)<0.07)return crec?'Cuarto creciente':'Cuarto menguante';return f<0.5?(crec?'Creciente':'Menguante'):(crec?'Gibosa creciente':'Gibosa menguante')}
@@ -1533,6 +1567,100 @@ $('iBortle').oninput=e=>{S.layers.bortle=+e.target.value;LS.set('layers',S.layer
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(watchId!=null){navigator.geolocation.clearWatch(watchId);watchId=null}}else if(LS.get('started',false))startWatch()});
 rearmAlerts();
 
+// ======================= Asistente con IA (Gemini) =======================
+const AI={hist:[],busy:false,model:LS.get('aiModel',''),speak:LS.get('aiSpeak',false)};
+const aiKey=()=>LS.get('aiKey','');
+function esc(t){return t.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function md(t){return esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/(^|\n)[*-] /g,'$1• ').replace(/(^|\n)#+ (.+)/g,'$1<b>$2</b>').replace(/\n/g,'<br>')}
+function aiAdd(role,html){const d=document.createElement('div');d.className='msg '+role;d.innerHTML=html;$('aiLog').appendChild(d);$('aiLog').scrollTop=1e9;return d}
+function openAI(prefill){
+  openP('pAI');$('aiSetup').style.display=aiKey()?'none':'block';$('aiChat').style.display=aiKey()?'block':'none';
+  $('aiSpeak').classList.toggle('on',AI.speak);
+  if(!$('aiLog').children.length&&aiKey())aiAdd('bot','¡Hola! Soy el asistente de Cielo Vivo. Sé qué hay en tu cielo ahora mismo y hacia dónde estás apuntando. Preguntame lo que quieras, escribiendo o con el 🎤.');
+  if(prefill){$('aiIn').value=prefill;aiSend()}
+}
+async function pickModel(key){
+  if(AI.model)return AI.model;
+  try{const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key='+encodeURIComponent(key));const j=await r.json();
+    const ok=(j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')).map(m=>m.name.replace('models/',''))
+      .filter(n=>/^gemini-[\d.]+-flash$/.test(n)||n==='gemini-flash-latest');
+    const ver=n=>parseFloat((n.match(/gemini-([\d.]+)/)||[0,0])[1]);
+    ok.sort((a,b)=>(b==='gemini-flash-latest'?-1:ver(b))-(a==='gemini-flash-latest'?-1:ver(a)));
+    AI.model=ok[0]||'gemini-flash-latest';
+  }catch(e){AI.model='gemini-flash-latest'}
+  return AI.model;
+}
+function skyContext(){
+  const P=precessionMatrix(S.jd),Hm=horizMatrix(S.jd,S.lat,S.lon),M=mmul(Hm,P);
+  const f=v2altaz(camF);const t=fmtTime(S.jd).txt;
+  const sunAlt=v2altaz(mv(M,planetVecJ2000('sol',S.jd).v)).alt;
+  const inView=hits.filter(h=>h.x>0&&h.x<W&&h.y>0&&h.y<H&&h.o.enu&&h.o.enu[2]>0).map(h=>{const a=v2altaz(h.o.enu);const n=h.o.kind==='star'?(h.o.s.name||h.o.s.des)+` (estrella, mag ${h.o.s.mag.toFixed(1)})`:h.o.kind==='planet'?h.o.pl.n+' (planeta)':h.o.kind==='mes'?h.o.m.id+(h.o.m.alt?' '+h.o.m.alt:'')+' ('+h.o.m.type+')':h.o.kind==='moon'?'Luna':h.o.kind==='sun'?'Sol':h.o.kind==='iss'?'Estación Espacial Internacional':h.o.kind==='andes'?h.o.a.n+' (constelación oscura inca)':'';
+    return{n,d:Math.hypot(h.x-W/2,h.y-H/2),s:`${n} — altura ${a.alt.toFixed(0)}°, acimut ${a.az.toFixed(0)}° (${dirName(a.az)})`}}).filter(x=>x.n).sort((a,b)=>a.d-b.d).slice(0,30).map(x=>x.s);
+  const cons=CONS.map(c=>({n:c.name,v:mv(M,c.v)})).filter(c=>{const p=project(c.v);return p&&p.cz>0&&p.x>0&&p.x<W&&p.y>0&&p.y<H&&c.v[2]>0}).map(c=>c.n);
+  const vis=PLANETS.map(p=>({n:p.n,a:v2altaz(mv(M,planetVecJ2000(p.id,S.jd).v))})).filter(p=>p.a.alt>0).map(p=>`${p.n} (altura ${p.a.alt.toFixed(0)}°, ${dirName(p.a.az)})`);
+  const mo=moonVecOfDate(S.jd),il=(1-dot(mo.v,mv(P,planetVecJ2000('sol',S.jd).v)))/2,ma=v2altaz(topoMoon(mv(Hm,mo.v)));
+  return [`Lugar: ${S.site?S.site.name+' (recreación histórica)':S.locName||'ubicación del usuario'}, latitud ${S.lat.toFixed(4)}, longitud ${S.lon.toFixed(4)}.`,
+    `Fecha y hora: ${t}.${S.live&&!S.site?' (ahora)':' (fecha elegida en la app, no es ahora)'}`,
+    `Sol: altura ${sunAlt.toFixed(0)}° (${sunAlt>0?'de día':sunAlt>-12?'crepúsculo':'de noche'}). Luna: ${(il*100).toFixed(0)}% iluminada, altura ${ma.alt.toFixed(0)}° hacia el ${dirName(ma.az)}.`,
+    `Contaminación lumínica elegida: Bortle ${S.layers.bortle}.`,
+    `El usuario está mirando hacia el ${dirName(f.az)} (acimut ${f.az.toFixed(0)}°, altura ${f.alt.toFixed(0)}°) con un campo de ${S.fov.toFixed(0)}°${S.ar?', con la cámara (realidad aumentada)':S.sensor?', moviendo el celular':''}.`,
+    `Constelaciones en pantalla: ${cons.join(', ')||'ninguna'}.`,
+    `Objetos en pantalla, del centro hacia afuera: ${inView.join('; ')||'ninguno'}.`,
+    `Planetas sobre el horizonte: ${vis.join(', ')||'ninguno'}.`,
+    S.target?`Objeto seleccionado: ${S.target.label}.`:'',
+    SC.open&&SC.obj?`Está mirando por el simulador de telescopio: ${objLabel(SC.obj)}, ${curScope().n} a ${SC.mag}×.`:''].filter(Boolean).join('\n');
+}
+const AI_SYS=`Sos el asistente de "Cielo Vivo", una app de astronomía hecha por un profesor de informática de Villa Carlos Paz (Córdoba, Argentina). Respondé en español rioplatense, claro y cálido, como un buen divulgador. Sé breve (en general menos de 120 palabras) salvo que te pidan algo largo, como una actividad o planificación de clase. Usá los datos del cielo que te paso para responder sobre lo que el usuario ve: decí hacia dónde mirar con puntos cardinales y altura en grados. No inventes datos; si no estás seguro, decilo. Si te piden actividades para el aula, que sean prácticas y usen la app. Nunca recomiendes mirar el Sol sin filtro solar certificado.`;
+async function aiSend(img){
+  const q=$('aiIn').value.trim();if(!q&&!img)return;if(AI.busy)return;const key=aiKey();if(!key){openAI();return}
+  $('aiIn').value='';aiAdd('me',esc(q||'¿Qué hay en esta foto?')+(img?'<br><img src="data:image/jpeg;base64,'+img+'" style="max-width:120px;border-radius:8px;margin-top:4px">':''));
+  const wait=aiAdd('bot','<i>Pensando…</i>');AI.busy=true;
+  const parts=[{text:`[Datos del cielo en este momento]\n${skyContext()}\n\n[Pregunta]\n${q||'¿Qué astros se ven en esta foto? Identificalos usando los datos del cielo.'}`}];
+  if(img)parts.push({inlineData:{mimeType:'image/jpeg',data:img}});
+  const contents=[...AI.hist.slice(-10),{role:'user',parts}];
+  try{
+    const model=await pickModel(key);
+    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},
+      body:JSON.stringify({systemInstruction:{parts:[{text:AI_SYS}]},contents,generationConfig:{temperature:0.6,maxOutputTokens:900}})});
+    const j=await r.json();
+    if(!r.ok){const m=j.error&&j.error.message||'';
+      if(r.status===429)throw new Error('Llegaste al límite de consultas gratis por ahora. Probá de nuevo en un rato.');
+      if(r.status===400&&/API key/i.test(m)||r.status===403)throw new Error('La clave no funciona. Revisala en ☰ → 🤖 → Cambiar clave.');
+      if(r.status===404){AI.model='';LS.set('aiModel','');throw new Error('El modelo de IA cambió de nombre. Volvé a preguntar y elijo otro.')}
+      throw new Error('Error de la IA: '+m)}
+    const txt=(j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts||[]).map(p=>p.text||'').join('').trim()||'(Sin respuesta)';
+    AI.hist.push({role:'user',parts:[{text:q||'(foto)'}]},{role:'model',parts:[{text:txt}]});
+    wait.innerHTML=md(txt);if(AI.speak)speak(txt.replace(/[*#•]/g,''));
+  }catch(e){wait.innerHTML='⚠️ '+esc(e.message.includes('Failed to fetch')?'Sin conexión a internet.':e.message)}
+  AI.busy=false;
+}
+function aiPhoto(){
+  const v=$('arVideo');
+  if(S.ar&&v.videoWidth){const c=document.createElement('canvas');const k=Math.min(1,1024/Math.max(v.videoWidth,v.videoHeight));c.width=v.videoWidth*k;c.height=v.videoHeight*k;c.getContext('2d').drawImage(v,0,0,c.width,c.height);aiSend(c.toDataURL('image/jpeg',0.8).split(',')[1]);return}
+  $('aiFile').click();
+}
+$('aiFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const im=new Image();im.onload=()=>{const c=document.createElement('canvas');const k=Math.min(1,1024/Math.max(im.width,im.height));c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);aiSend(c.toDataURL('image/jpeg',0.8).split(',')[1])};im.src=URL.createObjectURL(f);e.target.value=''};
+let rec=null;
+function aiMic(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){toast('Este navegador no reconoce voz. Probá con Chrome.');return}
+  if(rec){rec.stop();return}
+  rec=new SR();rec.lang='es-AR';rec.interimResults=true;$('aiMicB').classList.add('on');
+  rec.onresult=e=>{const t=[...e.results].map(r=>r[0].transcript).join('');$('aiIn').value=t;if(e.results[e.results.length-1].isFinal){rec.stop();aiSend()}};
+  rec.onend=()=>{rec=null;$('aiMicB').classList.remove('on')};rec.onerror=()=>{toast('No pude escucharte. Revisá el permiso del micrófono.')};rec.start();
+}
+$('aiSendB').onclick=()=>aiSend();$('aiIn').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();aiSend()}};
+$('aiMicB').onclick=aiMic;$('aiPhotoB').onclick=aiPhoto;
+$('aiSpeak').onclick=()=>{AI.speak=!AI.speak;LS.set('aiSpeak',AI.speak);$('aiSpeak').classList.toggle('on',AI.speak);if(!AI.speak)try{speechSynthesis.cancel()}catch(e){}};
+$('aiSaveKey').onclick=async()=>{const k=$('aiKeyIn').value.trim();if(k.length<20){toast('Esa clave parece incompleta');return}
+  $('aiSaveKey').textContent='Probando…';AI.model='';
+  try{const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=5&key='+encodeURIComponent(k));if(!r.ok)throw 0;LS.set('aiKey',k);$('aiKeyIn').value='';openAI();toast('✔ IA conectada')}
+  catch(e){toast('La clave no funcionó o no hay internet. Revisala.',4000)}$('aiSaveKey').textContent='Guardar clave'};
+$('aiChange').onclick=()=>{$('aiSetup').style.display='block';$('aiChat').style.display='none'};
+$('aiForget').onclick=()=>{LS.set('aiKey','');AI.hist=[];$('aiLog').innerHTML='';openAI();toast('Clave borrada de este dispositivo')};
+document.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{$('aiIn').value=b.dataset.q;aiSend()});
+$('bAI').onclick=()=>openAI();
+
+$('bAI2').onclick=()=>{$('pMore').style.display='none';openAI()};
 // ======================= Inicio =======================
 function begin(useSensors){
   $('start').style.display='none';LS.set('started',true);

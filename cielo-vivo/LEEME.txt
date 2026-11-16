@@ -20,6 +20,8 @@ Instalar
  Una vez instalada funciona sin internet.
 
 Uso
+ - 🤖 asistente con IA (Gemini, plan gratis): conoce tu cielo en ese momento; respondé por texto, voz o foto.
+   La primera vez pide una clave gratuita de aistudio.google.com/apikey (queda solo en tu dispositivo).
  - 📷 realidad aumentada: el cielo dibujado sobre la imagen de la cámara.
  - 📅 ¿Qué ver esta noche?: planetas, Luna, lluvias de meteoros y pasos de la Estación Espacial (con aviso).
  - ☰ Más: calibrar la brújula con una estrella, desafío con puntaje, recorrido guiado con voz y ajustes
