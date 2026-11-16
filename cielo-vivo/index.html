@@ -453,7 +453,7 @@ let camF=[0,1,0],camR=[1,0,0],camU=[0,0,1];
 // ======================= Canvas =======================
 const cv=$('sky');let ctx=cv.getContext('2d');
 let W=0,H=0,DPR=1,scale=1;
-function resize(){DPR=Math.min(window.devicePixelRatio||1,2.5);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)}
+function resize(){DPR=Math.min(window.devicePixelRatio||1,3);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)}
 addEventListener('resize',resize);resize();
 
 function setManualCam(){
@@ -901,22 +901,27 @@ $('siteBack').onclick=()=>{leaveSite();toast('De vuelta en tu cielo de hoy');if(
 const TILE={sat:z=>(x,y)=>`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`,
             calles:z=>(x,y)=>`https://tile.openstreetmap.org/${z}/${x}/${y}.png`};
 // Niveles de detalle: cuanto más cerca, más resolución (como Google Earth)
-// z18 ≈ 0,5 m/píxel · z17 ≈ 1 m · z15 ≈ 4 m · z13 ≈ 16 m
+// z19 ≈ 0,25 m/píxel · z17 ≈ 1 m · z15 ≈ 4 m · z13 ≈ 16 m
 function mkGT(z,n,r0,r1,reb){const c=document.createElement('canvas');c.width=c.height=n*256;return{canvas:c,ctx:c.getContext('2d'),ready:false,gen:0,src:null,lat:null,lon:null,z,n,tx0:0,ty0:0,r0,r1,reb,loaded:0,total:0}}
-const GTS=[mkGT(13,6,3000,16000,3000),mkGT(15,6,800,3500,700),mkGT(17,8,130,950,220),mkGT(18,6,0,200,100)];
+const GTS=[mkGT(13,6,0,16000,3000),mkGT(15,6,0,3500,700),mkGT(17,8,0,950,220),mkGT(19,8,0,230,60)];
 function merc(lat,lon,z){const n=2**z,s=Math.sin(clamp(lat,-85,85)*D2R);return{x:(lon+180)/360*256*n,y:(0.5-Math.log((1+s)/(1-s))/(4*Math.PI))*256*n}}
 function buildGroundTex(G,lat,lon,src){
-  const gen=++G.gen,z=G.z,p=merc(lat,lon,z),h=G.n/2;G.src=src;G.lat=lat;G.lon=lon;G.ready=false;G.loaded=0;G.total=G.n*G.n;
+  const gen=++G.gen,z=G.z,p=merc(lat,lon,z),h=G.n/2;G.src=src;G.lat=lat;G.lon=lon;G.ready=false;G.loaded=0;G.missing=0;G.total=G.n*G.n;
   G.tx0=Math.floor(p.x/256)-h;G.ty0=Math.floor(p.y/256)-h;
-  G.ctx.fillStyle=src==='sat'?'#1c2618':'#e8e4dc';G.ctx.fillRect(0,0,G.canvas.width,G.canvas.height);
+  G.ctx.clearRect(0,0,G.canvas.width,G.canvas.height);if(z<=13){G.ctx.fillStyle=src==='sat'?'#1c2618':'#e8e4dc';G.ctx.fillRect(0,0,G.canvas.width,G.canvas.height)}
   const url=TILE[src](z);
   // primero los mosaicos del centro (lo que tenés cerca)
   const order=[];for(let j=0;j<G.n;j++)for(let i=0;i<G.n;i++)order.push([i,j,Math.hypot(i+0.5-h,j+0.5-h)]);order.sort((a,b)=>a[2]-b[2]);
   for(const [i,j] of order){const im=new Image();im.crossOrigin='anonymous';
-    im.onload=()=>{if(gen!==G.gen)return;G.ctx.drawImage(im,i*256,j*256);G.ready=true;G.loaded++;G.loads=(G.loads||0)+1};
+    im.onload=()=>{if(gen!==G.gen)return;if(z>=17&&im.crossOrigin&&isPlaceholder(im)){G.loaded++;G.missing=(G.missing||0)+1;return}G.ctx.drawImage(im,i*256,j*256);G.ready=true;G.loaded++;G.loads=(G.loads||0)+1};
     im.onerror=()=>{if(im.crossOrigin){im.crossOrigin=null;im.src=url(G.tx0+i,G.ty0+j)}else if(gen===G.gen)G.loaded++};
     im.src=url(G.tx0+i,G.ty0+j)}
 }
+const PH=document.createElement('canvas');PH.width=PH.height=24;
+function isPlaceholder(im){ // mosaico "sin datos": gris claro y casi uniforme
+  try{const g=PH.getContext('2d',{willReadFrequently:true});g.drawImage(im,0,0,24,24);const d=g.getImageData(0,0,24,24).data;let m=0,m2=0,sat=0;const n=d.length/4;
+    for(let k=0;k<d.length;k+=4){const r=d[k],gg=d[k+1],b=d[k+2],y=(r+gg+b)/3;m+=y;m2+=y*y;sat+=Math.max(r,gg,b)-Math.min(r,gg,b)}
+    m/=n;const sd=Math.sqrt(Math.max(0,m2/n-m*m));sat/=n;return m>175&&sd<30&&sat<12}catch(e){return false}}
 function drawTri(img,P0,P1,P2,u0,v0,u1,v1,u2,v2){
   const du1=u1-u0,dv1=v1-v0,du2=u2-u0,dv2=v2-v0,det=du1*dv2-du2*dv1;if(Math.abs(det)<1e-9)return;
   const dx1=P1.x-P0.x,dy1=P1.y-P0.y,dx2=P2.x-P0.x,dy2=P2.y-P0.y;
@@ -952,10 +957,12 @@ function renderGroundMap(dayF,src,fine){
   const azStep=fine?6:15,NR=fine?14:7;
   const AZS=[];for(let a=0;a<=360;a+=azStep)AZS.push(a);
   const on=q=>q.p.x>-300&&q.p.x<W+300&&q.p.y>-300&&q.p.y<H+300;
-  for(const G of GTS){if(!G.ready)continue;
+  GTS.forEach((G,k)=>{if(!G.ready)return;
+    // si el nivel de más detalle ya cubre bien la zona cercana, este nivel arranca más lejos (más rápido)
+    const H2=GTS[k+1];const covered=H2&&H2.ready&&H2.loaded>=H2.total&&!H2.missing;const rStart=covered?H2.r1*0.8:0;
     const z=G.z,mpp=156543.03392*Math.cos(S.lat*D2R)/2**z,o=merc(S.lat,S.lon,z),u0=o.x-G.tx0*256,v0=o.y-G.ty0*256;
     // anillos de distancia: más densos cerca (en ángulo de depresión)
-    const d0=G.r0<=0?90:Math.atan(GH/G.r0)*R2D,d1=Math.atan(GH/G.r1)*R2D;
+    const d0=rStart>0?Math.atan(GH/rStart)*R2D:90,d1=Math.atan(GH/G.r1)*R2D;
     const deps=[];for(let i=0;i<=NR;i++){const t=i/NR;deps.push(d0+(d1-d0)*(1-Math.pow(1-t,1.7)))}
     const grid=deps.map(dep=>{const dist=dep>=89.9?0:GH/Math.tan(dep*D2R);return AZS.map(az=>{const p=project(altaz2v(-dep,az));
       return{p:p&&p.cz>-0.35?p:null,u:u0+dist*Math.sin(az*D2R)/mpp,v:v0-dist*Math.cos(az*D2R)/mpp}})});
@@ -965,7 +972,7 @@ function renderGroundMap(dayF,src,fine){
       drawTri(G.canvas,A.p,B.p,C.p,A.u,A.v,B.u,B.v,C.u,C.v);
       drawTri(G.canvas,A.p,C.p,D.p,A.u,A.v,C.u,C.v,D.u,D.v);
     }
-  }
+  });
   const dark=S.layers.gnight?0.32*(1-dayF):0;if(dark>0.02)drawGround(dayF,`rgba(0,0,12,${dark})`,true);
 }
 
