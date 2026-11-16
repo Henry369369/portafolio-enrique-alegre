@@ -198,7 +198,11 @@ input[type=range]{width:100%}
     </div>
     <div id="aiLog"></div>
     <div class="row" style="flex-wrap:nowrap"><input type="text" id="aiIn" placeholder="Escribí tu pregunta…"><button class="ib" id="aiMicB" title="Hablar">🎤</button><button class="ib" id="aiSendB" title="Enviar">➤</button></div>
-    <div class="row"><button class="tbtn" id="aiPhotoB">📷 Identificar en una foto</button><button class="tbtn" id="aiSpeak">🔊 Leer respuestas</button><button class="tbtn" id="aiSysB">✏️ Instrucciones</button><button class="tbtn" id="aiChange">🔑 Cambiar clave</button><button class="tbtn" id="aiForget">🗑️ Borrar clave</button></div>
+    <div class="row"><button class="tbtn" id="aiPhotoB">📷 Identificar en una foto</button><button class="tbtn" id="aiSpeak">🔊 Voz activada</button><button class="tbtn" id="aiStop" style="display:none">⏹ Callar</button><button class="tbtn" id="aiTalk">🗣️ Conversación</button><button class="tbtn" id="aiVozB">🎚️ Voz</button><button class="tbtn" id="aiSysB">✏️ Instrucciones</button><button class="tbtn" id="aiChange">🔑 Cambiar clave</button><button class="tbtn" id="aiForget">🗑️ Borrar clave</button></div>
+    <div id="aiVozBox" style="display:none;margin-top:8px"><label style="font-size:13px;color:var(--dim)">Voz de Astro (las voces dependen de tu celular):</label>
+      <select id="aiVoz" style="width:100%;background:#0a1030;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:14px;margin:4px 0"></select>
+      <label style="font-size:13px;color:var(--dim)">Velocidad: <b id="aiRateTxt"></b></label><input type="range" id="aiRate" min="0.7" max="1.5" step="0.1">
+      <div class="row"><button class="tbtn" id="aiVozTest">▶ Probar voz</button></div></div>
     <div id="aiSysBox" style="display:none;margin-top:8px"><label style="font-size:13px;color:var(--dim)">Instrucciones que recibe la IA (el "prompt de sistema"). Podés cambiarlas a tu gusto:</label>
       <textarea id="aiSysTxt" style="width:100%;height:42vh;background:#0a1030;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:13px"></textarea>
       <div class="row"><button class="pbtn acc" id="aiSysSave">Guardar</button><button class="tbtn" id="aiSysReset">Volver al original</button><button class="tbtn" id="aiSysCopy">📋 Copiar</button></div></div>
@@ -1542,8 +1546,24 @@ const FACTS={
  Tau:'En Tauro están las Pléyades, o Siete Cabrillas, un cúmulo de estrellas jóvenes, y Aldebarán, el ojo rojo del toro.',
  iss:'La Estación Espacial Internacional da una vuelta a la Tierra cada 90 minutos, a unos 400 kilómetros de altura.'};
 const TOUR={on:false,i:0,stops:[],playing:true};
-function speak(txt,onend){try{if(!('speechSynthesis' in window)){onend&&setTimeout(onend,4000);return}speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt);u.lang='es-AR';
-  const vs=speechSynthesis.getVoices();u.voice=vs.find(v=>/es[-_]AR/i.test(v.lang))||vs.find(v=>/^es/i.test(v.lang))||null;u.rate=1;if(onend)u.onend=onend;speechSynthesis.speak(u)}catch(e){onend&&setTimeout(onend,4000)}}
+// ----- Voz: elige la mejor voz en español y lee de a frases (evita cortes en Android) -----
+const VOZ={rate:LS.get('vozRate',1),name:LS.get('vozName',''),speaking:false};
+function vozList(){try{return speechSynthesis.getVoices().filter(v=>/^es/i.test(v.lang))}catch(e){return[]}}
+function bestVoice(){const vs=vozList();if(VOZ.name){const v=vs.find(v=>v.name===VOZ.name);if(v)return v}
+  const score=v=>(/es[-_](AR|419|US|MX|UY|CL|CO)/i.test(v.lang)?4:/es[-_]ES/i.test(v.lang)?2:1)+(/google|natural|online|enhanced|premium|neural/i.test(v.name)?3:0)+(v.localService?0:1);
+  return vs.sort((a,b)=>score(b)-score(a))[0]||null}
+function cleanSpeech(t){return t.replace(/https?:\/\/\S+/g,'').replace(/[*#_`>•]/g,'').replace(/\p{Extended_Pictographic}/gu,'').replace(/(\d+)°/g,'$1 grados').replace(/\s+/g,' ').trim()}
+function speak(txt,onend){
+  try{if(!('speechSynthesis' in window)){onend&&setTimeout(onend,4000);return}
+    speechSynthesis.cancel();const clean=cleanSpeech(txt);
+    const parts=(clean.match(/[^.!?;:]+[.!?;:]*/g)||[clean]).reduce((acc,f)=>{const l=acc[acc.length-1];if(l&&(l+f).length<180)acc[acc.length-1]=l+f;else acc.push(f);return acc},[]).map(x=>x.trim()).filter(Boolean);
+    const v=bestVoice();VOZ.speaking=true;updVozUI();let i=0;
+    const next=()=>{if(i>=parts.length||!VOZ.speaking){VOZ.speaking=false;updVozUI();onend&&onend();return}
+      const u=new SpeechSynthesisUtterance(parts[i++]);u.lang=v?v.lang:'es-AR';if(v)u.voice=v;u.rate=VOZ.rate;u.pitch=1;u.onend=next;u.onerror=next;speechSynthesis.speak(u)};
+    next();
+  }catch(e){VOZ.speaking=false;onend&&setTimeout(onend,4000)}}
+function shutUp(){VOZ.speaking=false;try{speechSynthesis.cancel()}catch(e){}updVozUI()}
+function updVozUI(){const b=document.getElementById('aiStop');if(b)b.style.display=VOZ.speaking?'inline-block':'none'}
 function startTour(){
   const P=precessionMatrix(S.jd),Hm=horizMatrix(S.jd,S.lat,S.lon),M=mmul(Hm,P);const up=k=>{const v=bodyENU(k,M,Hm,P);return v&&v2altaz(v).alt>8};
   const st=[];if(up('luna'))st.push({key:'luna',label:'Luna'});PLANETS.slice(0,5).forEach(p=>{if(up(p.id))st.push({key:p.id,label:p.n})});
@@ -1578,14 +1598,14 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){if(watchId
 rearmAlerts();
 
 // ======================= Asistente con IA (Gemini) =======================
-const AI={hist:[],busy:false,model:LS.get('aiModel',''),speak:LS.get('aiSpeak',false)};
+const AI={hist:[],busy:false,model:LS.get('aiModel',''),speak:LS.get('aiSpeak',true),talk:false};
 const aiKey=()=>LS.get('aiKey','');
 function esc(t){return t.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
 function md(t){return esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/(^|\n)[*-] /g,'$1• ').replace(/(^|\n)#+ (.+)/g,'$1<b>$2</b>').replace(/\n/g,'<br>')}
 function aiAdd(role,html){const d=document.createElement('div');d.className='msg '+role;d.innerHTML=html;$('aiLog').appendChild(d);$('aiLog').scrollTop=1e9;return d}
 function openAI(prefill){
   openP('pAI');$('aiSetup').style.display=aiKey()?'none':'block';$('aiChat').style.display=aiKey()?'block':'none';
-  $('aiSpeak').classList.toggle('on',AI.speak);
+  $('aiSpeak').classList.toggle('on',AI.speak);$('aiSpeak').textContent=AI.speak?'🔊 Voz activada':'🔇 Voz apagada';
   if(!$('aiLog').children.length&&aiKey())aiAdd('bot','¡Hola! Soy Astro, el asistente de Cielo Vivo. Sé qué hay en tu cielo ahora mismo y hacia dónde estás apuntando. Preguntame lo que quieras, escribiendo o con el 🎤.');
   if(prefill){$('aiIn').value=prefill;aiSend()}
 }
@@ -1641,7 +1661,8 @@ async function aiSend(img){
       throw new Error('Error de la IA: '+m)}
     const txt=(j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts||[]).map(p=>p.text||'').join('').trim()||'(Sin respuesta)';
     AI.hist.push({role:'user',parts:[{text:q||'(foto)'}]},{role:'model',parts:[{text:txt}]});
-    wait.innerHTML=md(txt);if(AI.speak)speak(txt.replace(/[*#•]/g,''));
+    wait.innerHTML=md(txt);
+    if(AI.speak||AI.talk)speak(txt,()=>{if(AI.talk&&$('pAI').style.display==='block')setTimeout(()=>{if(AI.talk&&!rec)aiMic()},400)});
   }catch(e){wait.innerHTML='⚠️ '+esc(e.message.includes('Failed to fetch')?'Sin conexión a internet.':e.message)}
   AI.busy=false;
 }
@@ -1655,13 +1676,21 @@ let rec=null;
 function aiMic(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){toast('Este navegador no reconoce voz. Probá con Chrome.');return}
   if(rec){rec.stop();return}
-  rec=new SR();rec.lang='es-AR';rec.interimResults=true;$('aiMicB').classList.add('on');
+  shutUp();rec=new SR();rec.lang='es-AR';rec.interimResults=true;$('aiMicB').classList.add('on');
   rec.onresult=e=>{const t=[...e.results].map(r=>r[0].transcript).join('');$('aiIn').value=t;if(e.results[e.results.length-1].isFinal){rec.stop();aiSend()}};
   rec.onend=()=>{rec=null;$('aiMicB').classList.remove('on')};rec.onerror=()=>{toast('No pude escucharte. Revisá el permiso del micrófono.')};rec.start();
 }
 $('aiSendB').onclick=()=>aiSend();$('aiIn').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();aiSend()}};
 $('aiMicB').onclick=aiMic;$('aiPhotoB').onclick=aiPhoto;
-$('aiSpeak').onclick=()=>{AI.speak=!AI.speak;LS.set('aiSpeak',AI.speak);$('aiSpeak').classList.toggle('on',AI.speak);if(!AI.speak)try{speechSynthesis.cancel()}catch(e){}};
+$('aiSpeak').onclick=()=>{AI.speak=!AI.speak;LS.set('aiSpeak',AI.speak);$('aiSpeak').classList.toggle('on',AI.speak);$('aiSpeak').textContent=AI.speak?'🔊 Voz activada':'🔇 Voz apagada';if(!AI.speak)shutUp()};
+$('aiStop').onclick=shutUp;
+$('aiTalk').onclick=()=>{AI.talk=!AI.talk;$('aiTalk').classList.toggle('on',AI.talk);if(AI.talk){toast('🗣️ Modo conversación: hablá después de cada respuesta. Tocá de nuevo para salir.',4000);if(!rec)aiMic()}else{if(rec)rec.stop();shutUp()}};
+$('aiVozB').onclick=()=>{const b=$('aiVozBox');b.style.display=b.style.display==='none'?'block':'none';fillVoces()};
+function fillVoces(){const vs=vozList();const cur=bestVoice();$('aiVoz').innerHTML=vs.length?vs.map(v=>`<option value="${esc(v.name)}" ${cur&&v.name===cur.name?'selected':''}>${esc(v.name)} (${v.lang})</option>`).join(''):'<option>No hay voces en español instaladas</option>';$('aiRate').value=VOZ.rate;$('aiRateTxt').textContent=VOZ.rate.toFixed(1)+'×'}
+try{speechSynthesis.onvoiceschanged=()=>{if($('aiVozBox').style.display!=='none')fillVoces()}}catch(e){}
+$('aiVoz').onchange=e=>{VOZ.name=e.target.value;LS.set('vozName',VOZ.name)};
+$('aiRate').oninput=e=>{VOZ.rate=+e.target.value;LS.set('vozRate',VOZ.rate);$('aiRateTxt').textContent=VOZ.rate.toFixed(1)+'×'};
+$('aiVozTest').onclick=()=>speak('Hola, soy Astro. Esta noche el cielo de Villa Carlos Paz está lleno de estrellas.');
 $('aiSaveKey').onclick=async()=>{const k=$('aiKeyIn').value.trim();if(k.length<20){toast('Esa clave parece incompleta');return}
   $('aiSaveKey').textContent='Probando…';AI.model='';
   try{const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=5&key='+encodeURIComponent(k));if(!r.ok)throw 0;LS.set('aiKey',k);$('aiKeyIn').value='';openAI();toast('✔ IA conectada')}
