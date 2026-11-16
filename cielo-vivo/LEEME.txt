@@ -22,6 +22,9 @@ Instalar
 Uso
  - 🗺️ mapa de calles (OpenStreetMap) o satelital con tu posición GPS en vivo y un cono
    que muestra hacia dónde apuntás. Agrandado (⤢), tocá otro punto para ver el cielo desde ahí.
+ - El suelo muestra la foto satelital (o el mapa de calles) del lugar donde estás; al elegir un
+   monumento el mapa "vuela" hasta él. Cambialo en ⚙️ → Suelo.
+ - 🔭 con 📷 Foto real usa imágenes reales de Wikipedia (NASA/ESA); 🔍 amplía la pantalla.
  - 🌐 cielo completo (toda la bóveda en un círculo) y botones ＋/－ de zoom.
  - 🔭 telescopio: con los sensores, centrá un astro en la mira y tocá "Ver en el telescopio"
    (o tocá cualquier astro → 🔭). Elegí instrumento y aumento.

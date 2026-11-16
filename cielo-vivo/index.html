@@ -123,7 +123,7 @@ input[type=number],input[type=text],input[type=search]{background:#0a1030;border
   <div id="scHead"><div id="scTitle"></div><div style="font-size:12px;color:var(--dim)">Simulador de telescopio</div></div>
   <button class="ib" id="scClose">✕</button>
   <div id="scInfo"></div>
-  <div id="scCtl"><div class="r" id="scInst"></div><div class="r"><span id="scMag" class="r"></span><button class="tbtn" id="scInv">🔄 Invertir</button></div></div>
+  <div id="scCtl"><div class="r" id="scInst"></div><div class="r"><span id="scMag" class="r"></span><button class="tbtn" id="scPhoto">📷 Foto real</button><button class="tbtn" id="scZoom">🔍 ×1</button><button class="tbtn" id="scInv">🔄 Invertir</button></div></div>
 </div>
 <div id="info"><button class="tbtn x" id="infoX">✕</button><div id="infoBody"></div></div>
 
@@ -175,6 +175,7 @@ input[type=number],input[type=text],input[type=search]{background:#0a1030;border
   <label class="chk"><input type="checkbox" id="cNames" checked> Nombres de estrellas</label>
   <label class="chk"><input type="checkbox" id="cMes"> Objetos Messier (nebulosas, cúmulos, galaxias)</label>
   <label class="chk"><input type="checkbox" id="cGround" checked> Suelo y horizonte</label>
+  <div class="row"><label>Suelo:</label><button class="tbtn" data-gm="sat">🛰️ Satélite</button><button class="tbtn" data-gm="calles">🗺️ Calles</button><button class="tbtn" data-gm="liso">Liso</button></div>
   <label class="chk"><input type="checkbox" id="cGrid"> Cuadrícula de altura y acimut</label>
   <label class="chk"><input type="checkbox" id="cDay" checked> Simular la luz del día</label>
   <label class="chk"><input type="checkbox" id="cRed"> Modo nocturno rojo (cuida la visión en la oscuridad)</label>
@@ -371,7 +372,7 @@ const S={
   jd:jdNow(),live:true,play:false,
   az:180,alt:35,fov:LS.get('fov',80),
   sensor:false,azOffset:LS.get('azOff',0),
-  layers:Object.assign({lines:true,cons:true,names:true,mes:false,ground:true,day:true,red:false,grid:false},LS.get('layers',{})),
+  layers:Object.assign({lines:true,cons:true,names:true,mes:false,ground:true,day:true,red:false,grid:false,gmap:'sat'},LS.get('layers',{})),
   gps:null,followGPS:LS.get('follow',true),allsky:false,
   site:null,target:null
 };
@@ -460,7 +461,7 @@ function draw(){
   {const p=project(sunE);if(p&&inScr(p)){const r=Math.max(9,0.27*D2R*scale);const gg=ctx.createRadialGradient(p.x,p.y,r*0.3,p.x,p.y,r*4);gg.addColorStop(0,'rgba(255,240,180,1)');gg.addColorStop(1,'rgba(255,200,80,0)');ctx.fillStyle=gg;ctx.beginPath();ctx.arc(p.x,p.y,r*4,0,7);ctx.fill();ctx.fillStyle='#fff6d0';ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);ctx.fill();ctx.fillStyle='#ffd27a';ctx.font='600 12px system-ui';ctx.fillText('Sol',p.x+r+4,p.y+4);hits.push({x:p.x,y:p.y,o:{kind:'sun',enu:sunE}})}}
   // suelo
   if(S.layers.grid)drawGrid();
-  if(S.layers.ground)drawGround(dayF);
+  if(S.layers.ground){drawGround(dayF);drawGroundMap(dayF)}
   drawHorizon();
   drawCardinals();
   // marcas de alineación del monumento
@@ -487,15 +488,15 @@ function drawMoon(p,r,illum,sp){
   ctx.fill();ctx.restore();
   ctx.fillStyle='#ffd27a';ctx.font='600 12px system-ui';ctx.textAlign='left';ctx.fillText('Luna',p.x+r+4,p.y+4);
 }
-function drawGround(dayF){
+function drawGround(dayF,fillOverride,noStroke){
   // el horizonte es un círculo en proyección estereográfica
   const Up=[0,0,1];
   let h0=[camF[0],camF[1],0];if(Math.hypot(h0[0],h0[1])<1e-6)h0=[camU[0],camU[1],0];h0=vnorm(h0);
   const h1=cross(Up,h0),h2=[-h1[0],-h1[1],0];
   const pts=[h0,h1,h2].map(v=>project(v)).filter(Boolean);if(pts.length<3)return;
   const [A,B,C]=pts;const d=2*(A.x*(B.y-C.y)+B.x*(C.y-A.y)+C.x*(A.y-B.y));
-  const col=`rgba(${mixc([10,22,16],[40,70,40],dayF)},0.93)`;
-  ctx.fillStyle=col;ctx.strokeStyle='rgba(120,200,140,.8)';ctx.lineWidth=1.5;
+  const col=fillOverride||`rgba(${mixc([10,22,16],[40,70,40],dayF)},0.93)`;
+  ctx.fillStyle=col;if(noStroke)ctx.strokeStyle='rgba(0,0,0,0)';ctx.strokeStyle='rgba(120,200,140,.8)';ctx.lineWidth=1.5;
   const nad=dot([0,0,-1],camF);
   if(Math.abs(d)<1e-3){ // es una recta
     const nx=-(B.y-A.y),ny=B.x-A.x;const pn=project([0,0,-1]);
@@ -728,7 +729,7 @@ function selectTarget(x){
 function fillSet(){
   $('iLat').value=S.lat.toFixed(4);$('iLon').value=S.lon.toFixed(4);
   const d=fmtTime(S.jd).d;$('iY').value=d.Y;$('iM').value=d.M;$('iD').value=d.D;$('iH').value=d.h;$('iMi').value=d.mi;
-  const L=S.layers;$('cLines').checked=L.lines;$('cCons').checked=L.cons;$('cNames').checked=L.names;$('cMes').checked=L.mes;$('cGround').checked=L.ground;$('cDay').checked=L.day;$('cRed').checked=L.red;$('cGrid').checked=L.grid;
+  const L=S.layers;$('cLines').checked=L.lines;$('cCons').checked=L.cons;$('cNames').checked=L.names;$('cMes').checked=L.mes;$('cGround').checked=L.ground;$('cDay').checked=L.day;$('cRed').checked=L.red;$('cGrid').checked=L.grid;markGm();
 }
 $('bApply').onclick=()=>{
   const lat=parseFloat($('iLat').value),lon=parseFloat($('iLon').value);
@@ -738,6 +739,8 @@ $('bApply').onclick=()=>{
   $('pSet').style.display='none';toast('Fecha y lugar actualizados');
 };
 [['cGrid','grid'],['cLines','lines'],['cCons','cons'],['cNames','names'],['cMes','mes'],['cGround','ground'],['cDay','day'],['cRed','red']].forEach(([id,k])=>$(id).onchange=e=>{S.layers[k]=e.target.checked;LS.set('layers',S.layers);applyRed()});
+document.querySelectorAll('[data-gm]').forEach(b=>b.onclick=()=>{S.layers.gmap=b.dataset.gm;LS.set('layers',S.layers);markGm()});
+function markGm(){document.querySelectorAll('[data-gm]').forEach(b=>b.classList.toggle('on',b.dataset.gm===S.layers.gmap))}
 function applyRed(){$('red').style.display=S.layers.red?'block':'none'}
 function saveLoc(){LS.set('lat',S.lat);LS.set('lon',S.lon);LS.set('locName',S.locName)}
 let watchId=null,gpsErrShown=false;
@@ -795,7 +798,8 @@ function goSite(site){
     S.target=first.target?{key:first.target,label:first.target==='sol'?'Sol':first.target}:null;
     $('site').style.display='block';$('siteTxt').innerHTML=`📍 <b>${site.name}</b> · ${site.short}`;
     $('info').style.display='none';
-    showSiteInfo();
+    flyMapTo(site.lat,site.lon,true);toast('✈️ Volando a '+site.name+'… mirá hacia abajo: el suelo es la foto satelital del lugar',5000);
+    setTimeout(showSiteInfo,5500);
   },30);
 }
 function showSiteInfo(){if(!S.site)return;$('siteInfoBody').innerHTML=`<h2>${S.site.name}</h2>${S.site.text}<p style="font-size:12px;color:var(--dim)">El horizonte se considera plano. Fechas en calendario gregoriano proléptico; posiciones aproximadas (±1°).</p>`;openP('pSiteInfo')}
@@ -804,10 +808,84 @@ function leaveSite(){
   S.site=null;S.target=null;$('site').style.display='none';
   if(S.followGPS&&S.gps){S.lat=S.gps.lat;S.lon=S.gps.lon}else{S.lat=LS.get('lat',-31.42);S.lon=LS.get('lon',-64.50)}S.locName=LS.get('locName','Ubicación por defecto');S.live=true;
 }
-$('siteBack').onclick=()=>{leaveSite();toast('De vuelta en tu cielo de hoy')};
+$('siteBack').onclick=()=>{leaveSite();toast('De vuelta en tu cielo de hoy');if(map&&mapOpen())map.flyTo([S.lat,S.lon],17,{duration:4})};
+
+// ======================= Suelo con mapa real (satélite / calles) =======================
+const TILE={sat:z=>(x,y)=>`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`,
+            calles:z=>(x,y)=>`https://tile.openstreetmap.org/${z}/${x}/${y}.png`};
+const GT={canvas:document.createElement('canvas'),ready:false,gen:0,src:null,lat:null,lon:null,z:16,tx0:0,ty0:0};
+GT.canvas.width=GT.canvas.height=1536;GT.ctx=GT.canvas.getContext('2d');
+function merc(lat,lon,z){const n=2**z,s=Math.sin(clamp(lat,-85,85)*D2R);return{x:(lon+180)/360*256*n,y:(0.5-Math.log((1+s)/(1-s))/(4*Math.PI))*256*n}}
+function buildGroundTex(lat,lon,src){
+  const gen=++GT.gen,z=GT.z,p=merc(lat,lon,z);GT.src=src;GT.lat=lat;GT.lon=lon;GT.ready=false;
+  GT.tx0=Math.floor(p.x/256)-3;GT.ty0=Math.floor(p.y/256)-3;
+  GT.ctx.fillStyle=src==='sat'?'#1c2618':'#e8e4dc';GT.ctx.fillRect(0,0,1536,1536);
+  const url=TILE[src](z);
+  for(let j=0;j<6;j++)for(let i=0;i<6;i++){const im=new Image();im.crossOrigin='anonymous';
+    im.onload=()=>{if(gen!==GT.gen)return;GT.ctx.drawImage(im,i*256,j*256);GT.ready=true};
+    im.onerror=()=>{if(im.crossOrigin){im.crossOrigin=null;im.src=url(GT.tx0+i,GT.ty0+j)}};
+    im.src=url(GT.tx0+i,GT.ty0+j)}
+}
+function drawTri(img,P0,P1,P2,u0,v0,u1,v1,u2,v2){
+  const du1=u1-u0,dv1=v1-v0,du2=u2-u0,dv2=v2-v0,det=du1*dv2-du2*dv1;if(Math.abs(det)<1e-9)return;
+  const dx1=P1.x-P0.x,dy1=P1.y-P0.y,dx2=P2.x-P0.x,dy2=P2.y-P0.y;
+  const a=(dx1*dv2-dx2*dv1)/det,b=(dy1*dv2-dy2*dv1)/det,c=(dx2*du1-dx1*du2)/det,d=(dy2*du1-dy1*du2)/det;
+  const e=P0.x-a*u0-c*v0,f=P0.y-b*u0-d*v0;
+  const mx=(P0.x+P1.x+P2.x)/3,my=(P0.y+P1.y+P2.y)/3,ex=p=>[p.x+(p.x-mx)*0.04+Math.sign(p.x-mx)*0.6,p.y+(p.y-my)*0.04+Math.sign(p.y-my)*0.6];
+  ctx.save();ctx.beginPath();ctx.moveTo(...ex(P0));ctx.lineTo(...ex(P1));ctx.lineTo(...ex(P2));ctx.closePath();ctx.clip();
+  ctx.transform(a,b,c,d,e,f);ctx.drawImage(img,0,0);ctx.restore();
+}
+const GH=45,GRMAX=1500,DEPS=[90,74,60,48,38,30,23,17.5,13,9.5,7,5,3.5,Math.atan(GH/GRMAX)*R2D];
+function drawGroundMap(dayF){
+  const src=S.layers.gmap;if(!src||src==='liso')return;
+  if(GT.src!==src||GT.lat==null||Math.hypot((S.lat-GT.lat)*111320,(S.lon-GT.lon)*111320*Math.cos(S.lat*D2R))>350)buildGroundTex(S.lat,S.lon,src);
+  if(!GT.ready)return;
+  const z=GT.z,mpp=156543.03392*Math.cos(S.lat*D2R)/2**z,o=merc(S.lat,S.lon,z),u0=o.x-GT.tx0*256,v0=o.y-GT.ty0*256;
+  const AZS=[];for(let a=0;a<=360;a+=15)AZS.push(a);
+  const grid=DEPS.map(dep=>{const dist=dep>=89.9?0:GH/Math.tan(dep*D2R);return AZS.map(az=>{const p=project(altaz2v(-dep,az));
+    return{p:p&&p.cz>-0.35?p:null,u:u0+dist*Math.sin(az*D2R)/mpp,v:v0-dist*Math.cos(az*D2R)/mpp}})});
+  const on=q=>q.p.x>-200&&q.p.x<W+200&&q.p.y>-200&&q.p.y<H+200;
+  for(let i=0;i<grid.length-1;i++)for(let j=0;j<AZS.length-1;j++){
+    const A=grid[i][j],B=grid[i][j+1],C=grid[i+1][j+1],D=grid[i+1][j];if(!A.p||!B.p||!C.p||!D.p)continue;if(!on(A)&&!on(B)&&!on(C)&&!on(D))continue;
+    if(i>0)drawTri(GT.canvas,A.p,B.p,C.p,A.u,A.v,B.u,B.v,C.u,C.v);
+    drawTri(GT.canvas,A.p,C.p,D.p,A.u,A.v,C.u,C.v,D.u,D.v);
+  }
+  // oscurecer de noche
+  const dark=0.62*(1-dayF);if(dark>0.02)drawGround(dayF,`rgba(0,0,12,${dark})`,true);
+  // "vos estás acá"
+  const pn=project([0,0,-1]);if(pn&&pn.cz>-0.3&&inScr(pn)){ctx.fillStyle='#2f7bff';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(pn.x,pn.y,7,0,7);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#fff';ctx.font='700 12px system-ui';ctx.textAlign='center';ctx.fillText(S.site?S.site.name:'Vos estás acá',pn.x,pn.y-12);ctx.textAlign='left'}
+}
+
+// ======================= Fotos reales (Wikipedia / NASA / ESA) =======================
+const PHOTO_T={luna:'Moon',sol:'Sun',mer:'Mercury_(planet)',ven:'Venus',mar:'Mars',jup:'Jupiter',sat:'Saturn',ura:'Uranus',nep:'Neptune'};
+const PHOTOS={};
+function photoKey(o){return o.kind==='moon'?'luna':o.kind==='sun'?'sol':o.kind==='planet'?o.pl.id:o.kind==='mes'?o.m.id:null}
+function getPhoto(o){
+  const k=photoKey(o);if(!k)return null;if(PHOTOS[k])return PHOTOS[k];
+  const P=PHOTOS[k]={state:'loading'};
+  const title=PHOTO_T[k]||('Messier_'+k.slice(1));
+  fetch('https://en.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(title)).then(r=>r.json()).then(j=>{
+    let src=j.originalimage&&j.originalimage.width<=1400?j.originalimage.source:(j.thumbnail?j.thumbnail.source.replace(/\/\d+px-/,'/900px-'):null);
+    if(!src)throw 0;const im=new Image();im.crossOrigin='anonymous';
+    im.onload=()=>{P.img=im;P.state='ok'};
+    im.onerror=()=>{if(j.thumbnail&&im.src!==j.thumbnail.source){im.crossOrigin=null;im.src=j.thumbnail.source}else P.state='err'};
+    im.src=src;P.page=j.content_urls&&j.content_urls.mobile?j.content_urls.mobile.page:'';
+  }).catch(()=>{P.state='err'});
+  return P;
+}
+function drawPhoto(c,o,x,y,rad,ang,mode){ // mode: 'disk' recorta en círculo; 'screen' mezcla sobre el cielo
+  const P=getPhoto(o);if(!P||P.state!=='ok')return false;const im=P.img;
+  const k=mode==='disk'?(o.kind==='moon'?0.93:o.kind==='sun'?0.95:0.92):1;
+  const s=2*rad/k,ar=im.height/im.width;
+  c.save();c.translate(x,y);c.rotate(ang);
+  if(mode==='disk'){c.beginPath();c.arc(0,0,rad,0,7);c.clip()}
+  else{c.globalCompositeOperation='screen';c.beginPath();c.arc(0,0,Math.max(s,s*ar)/2,0,7);c.clip()}
+  c.drawImage(im,-s/2,-s*ar/2,s,s*ar);c.restore();return true;
+}
 
 // ======================= Mapa de calles (OpenStreetMap / Leaflet) =======================
-let map=null,meMk=null,accC=null,cone=null,siteLyr=null,pickMk=null,picked=null,lastMapUpd=0;
+let mapCalles=null,mapSat=null,map=null,meMk=null,accC=null,cone=null,siteLyr=null,pickMk=null,picked=null,lastMapUpd=0;
 const mapOpen=()=>$('mapBox').style.display==='block';
 function loadLeaflet(cb){
   if(window.L)return cb();
@@ -820,8 +898,8 @@ function dest(lat,lon,az,m){const dl=m*Math.cos(az*D2R)/111320,dn=m*Math.sin(az*
 function initMap(){
   const p=myPos();
   map=L.map('map',{zoomControl:false,attributionControl:true}).setView([p.lat,p.lon],17);
-  const calles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});
-  const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'© Esri'});
+  const calles=mapCalles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});
+  const sat=mapSat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'© Esri'});
   calles.addTo(map);L.control.layers({'Calles':calles,'Satélite':sat},null,{position:'topleft'}).addTo(map);
   map.on('click',e=>{if(!$('mapBox').classList.contains('big'))return;picked=e.latlng;
     if(pickMk)pickMk.setLatLng(picked);else pickMk=L.marker(picked).addTo(map);$('mapUse').style.display='block';updateMap(false)});
@@ -852,6 +930,12 @@ $('bMap').onclick=()=>{
   $('mapBox').style.display='block';$('bMap').classList.add('on');startWatch();
   loadLeaflet(()=>{if(!map)initMap();setTimeout(()=>{map.invalidateSize();updateMap(true)},60)});
 };
+function flyMapTo(lat,lon,sat){
+  $('mapBox').style.display='block';$('bMap').classList.add('on');
+  loadLeaflet(()=>{if(!map)initMap();map.invalidateSize();
+    if(sat&&!map.hasLayer(mapSat)){map.removeLayer(mapCalles);mapSat.addTo(map)}
+    map.flyTo([lat,lon],17,{duration:5});setTimeout(()=>updateMap(false),5200)});
+}
 $('mapClose').onclick=()=>{$('mapBox').style.display='none';$('bMap').classList.remove('on')};
 $('mapSize').onclick=()=>{$('mapBox').classList.toggle('big');if(!$('mapBox').classList.contains('big'))$('mapUse').style.display='none';setTimeout(()=>{map&&map.invalidateSize();updateMap(true)},60)};
 $('mapMe').onclick=()=>{if(!S.site){S.followGPS=true;LS.set('follow',true)}picked=null;if(pickMk){map.removeLayer(pickMk);pickMk=null}$('mapUse').style.display='none';startWatch();updateMap(true)};
@@ -867,7 +951,7 @@ const SCOPES=[
 const MAGS=[20,35,50,75,100,150,200,300,400,600];
 const PDIAM={mer:6.74,ven:16.92,mar:9.36,jup:196.94,sat:165.6,ura:70.48,nep:68.3}; // diámetro a 1 UA (")
 const POLES={jup:[268.057,64.495],sat:[40.589,83.537],mar:[317.681,52.887],luna:[269.995,66.539],ura:[257.311,-15.175],nep:[299.36,43.46]};
-const SC={open:false,obj:null,scope:LS.get('scope','r70'),mag:LS.get('smag',50),invert:false,t0:performance.now()};
+const SC={photo:LS.get('sphoto',true),zoom:1,open:false,obj:null,scope:LS.get('scope','r70'),mag:LS.get('smag',50),invert:false,t0:performance.now()};
 const scv=$('scopeCv'),sctx=scv.getContext('2d');
 function rnd(seed){let x=0;for(const c of String(seed))x=(x*31+c.charCodeAt(0))|0;return()=>{x^=x<<13;x^=x>>17;x^=x<<5;return((x>>>0)%100000)/100000}}
 function curScope(){return SCOPES.find(s=>s.id===SC.scope)||SCOPES[1]}
@@ -886,7 +970,7 @@ function renderScopeUI(){
   if(sc.bin){$('scMag').innerHTML='<span style="font-size:12px;color:var(--dim)">Aumento fijo: 10×</span>'}
   else{$('scMag').innerHTML=MAGS.map(m=>`<button class="tbtn ${m===SC.mag?'on':''}" data-m="${m}" ${m>maxMag()?'style="opacity:.55"':''}>${m}×</button>`).join('');
     $('scMag').querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{SC.mag=+b.dataset.m;LS.set('smag',SC.mag);renderScopeUI()})}
-  $('scInv').classList.toggle('on',SC.invert);
+  $('scInv').classList.toggle('on',SC.invert);$('scPhoto').classList.toggle('on',SC.photo);$('scPhoto').textContent=SC.photo?'📷 Foto real':'✏️ Simulado';$('scZoom').textContent='🔍 ×'+SC.zoom;$('scZoom').classList.toggle('on',SC.zoom>1);
 }
 const maxMag=()=>Math.min(400,curScope().D*2);
 function scopeParams(sunAlt){
@@ -924,7 +1008,7 @@ function drawScope(){
   const o=SC.obj,t=bodyNow(o,M,Hm),sunE=mv(M,planetVecJ2000('sol',S.jd).v),sunAlt=v2altaz(sunE).alt;
   const {sc,mag,fov,lim}=scopeParams(sunAlt);
   const R0=Math.min(w-16,h*0.6)/2,cx=w/2,cy=h*0.12+R0+10;
-  const pxArc=R0/(fov/2*3600); // píxeles por segundo de arco
+  const pxArc=R0/(fov/2*3600)*SC.zoom; // píxeles por segundo de arco (con zoom de pantalla)
   // base local alrededor del objeto (arriba = cenit)
   let r=cross(t,[0,0,1]);if(Math.hypot(...r)<1e-6)r=[1,0,0];r=vnorm(r);const u=cross(r,t);
   const inv=SC.invert?-1:1;
@@ -967,7 +1051,7 @@ function drawScope(){
   c.textAlign='left';
   // texto
   $('scTitle').textContent=objLabel(o);
-  $('scInfo').innerHTML=`${sc.n} · ${mag}× · campo real ${fov<1?(fov*60).toFixed(0)+'′':fov.toFixed(1)+'°'} · ve hasta magnitud ${lim.toFixed(1)}${over>0?'<br><b style="color:#ffcc55">Aumento excesivo para este instrumento (máximo útil '+maxMag()+'×): la imagen se ve borrosa y oscura, como en la realidad.</b>':''}${info?'<br>'+info:''}${vis<0?'<br><b style="color:#ff8a8a">Está bajo el horizonte: en la realidad no se vería ahora.</b>':vis<10?'<br><i>Muy bajo: la atmósfera lo deforma bastante.</i>':''}`;
+  $('scInfo').innerHTML=`${sc.n} · ${mag}×${SC.zoom>1?' (zoom de pantalla ×'+SC.zoom+')':''} · campo real ${fov<1?(fov*60).toFixed(0)+'′':fov.toFixed(1)+'°'} · ve hasta magnitud ${lim.toFixed(1)}${over>0?'<br><b style="color:#ffcc55">Aumento excesivo para este instrumento (máximo útil '+maxMag()+'×): la imagen se ve borrosa y oscura, como en la realidad.</b>':''}${info?'<br>'+info:''}${vis<0?'<br><b style="color:#ff8a8a">Está bajo el horizonte: en la realidad no se vería ahora.</b>':vis<10?'<br><i>Muy bajo: la atmósfera lo deforma bastante.</i>':''}`;
   requestAnimationFrame(drawScope);
 }
 function drawDisk(c,x,y,rad,ang,paint,oblate=1){c.save();c.translate(x,y);c.rotate(ang);c.beginPath();c.ellipse(0,0,rad,rad*oblate,0,0,7);c.clip();paint(c,rad);c.restore()}
@@ -985,7 +1069,7 @@ function drawObject(c,o,t,E){
     const mo=moonVecOfDate(S.jd),P=precessionMatrix(S.jd),sd=mv(P,planetVecJ2000('sol',S.jd).v);
     const illum=(1-dot(mo.v,sd))/2;const diam=2*Math.asin(1737.4/(mo.dist*6378.14))*R2D*3600;const rad=diam/2*pxArc;
     blur(c,seeing*0.6);
-    drawDisk(c,x,y,rad,E.angPole('luna'),(g,R)=>{
+    if(!(SC.photo&&drawPhoto(c,o,x,y,rad,E.angPole('luna'),'disk')))drawDisk(c,x,y,rad,E.angPole('luna'),(g,R)=>{
       const gr=g.createRadialGradient(-R*0.2,-R*0.2,0,0,0,R);gr.addColorStop(0,'#e9e6dc');gr.addColorStop(1,'#bdb9ad');g.fillStyle=gr;g.fillRect(-R,-R,2*R,2*R);
       const MARIA=[[33,-16,.30,.24],[28,17,.17,.15],[8.5,31,.2,.17],[17,59,.12,.1],[-8,51,.15,.13],[-15,35,.09,.09],[-21,-17,.17,.14],[18,-57,.4,.3],[56,1,.08,.38],[-24,-39,.1,.1],[13,4,.06,.06],[-10,-23,.1,.1],[3,-15,.09,.07]];
       for(const [la,lo,a,b] of MARIA){const X=Math.cos(la*D2R)*Math.sin(lo*D2R)*R,Y=-Math.sin(la*D2R)*R;if(Math.cos(la*D2R)*Math.cos(lo*D2R)<0)continue;
@@ -1000,13 +1084,13 @@ function drawObject(c,o,t,E){
       const [px,py]=pt(51.6,-9);g.fillStyle='#55555a';g.beginPath();g.ellipse(px,py,R*0.035,R*0.02,0,0,7);g.fill();
     });
     phaseShadow(c,x,y,rad,illum,angSun);blur(c,0);
-    return`Luna: ${(illum*100).toFixed(0)}% iluminada · diámetro aparente ${(diam/60).toFixed(1)}′ · ${(mo.dist*6378/1000).toFixed(0)} mil km. Los cráteres se ven mejor cerca del terminador (la línea entre luz y sombra).`;
+    return photoNote(o)+`Luna: ${(illum*100).toFixed(0)}% iluminada · diámetro aparente ${(diam/60).toFixed(1)}′ · ${(mo.dist*6378/1000).toFixed(0)} mil km. Los cráteres se ven mejor cerca del terminador (la línea entre luz y sombra).`;
   }
   if(o.kind==='sun'){
     const rad=1919/2*pxArc;blur(c,seeing*0.5);
-    drawDisk(c,x,y,rad,0,(g,R)=>{const gr=g.createRadialGradient(0,0,0,0,0,R);gr.addColorStop(0,'#ffffff');gr.addColorStop(0.8,'#f5f0e0');gr.addColorStop(1,'#cbbf9a');g.fillStyle=gr;g.fillRect(-R,-R,2*R,2*R);
+    if(!(SC.photo&&drawPhoto(c,o,x,y,rad,0,'disk')))drawDisk(c,x,y,rad,0,(g,R)=>{const gr=g.createRadialGradient(0,0,0,0,0,R);gr.addColorStop(0,'#ffffff');gr.addColorStop(0.8,'#f5f0e0');gr.addColorStop(1,'#cbbf9a');g.fillStyle=gr;g.fillRect(-R,-R,2*R,2*R);
       const rn=rnd('sol'+Math.floor(S.jd/3));for(let i=0;i<6;i++){const a=rn()*6.283,rr=R*(0.2+rn()*0.55),sx=Math.cos(a)*rr,sy=(rn()-0.5)*R*0.7;g.fillStyle='rgba(60,40,30,.6)';g.beginPath();g.arc(sx,sy,R*0.025*(0.5+rn()),0,7);g.fill();g.fillStyle='rgba(20,10,10,.9)';g.beginPath();g.arc(sx,sy,R*0.012*(0.5+rn()),0,7);g.fill()}});
-    blur(c,0);return'<b style="color:#ffcc55">Vista simulada con filtro solar certificado.</b> Las manchas son ilustrativas.';
+    blur(c,0);return photoNote(o)+'<b style="color:#ffcc55">Vista con filtro solar certificado.</b>';
   }
   if(o.kind==='planet'){
     const id=o.pl.id,T=(S.jd-2451545)/36525,Pp=helio(DATA.planets[id],T),Ee=helio(DATA.planets.ter,T);
@@ -1015,8 +1099,11 @@ function drawObject(c,o,t,E){
     const diam=PDIAM[id]/dist,rad=Math.max(1.2,diam/2*pxArc);const ang=E.angPole(id);
     blur(c,seeing*0.8);
     let extra='';
-    if(id==='jup'){
-      drawDisk(c,x,y,rad,ang,(g2,R)=>{g2.fillStyle='#e8dcc0';g2.fillRect(-R,-R,2*R,2*R);
+    const usePh=SC.photo&&getPhoto(o)&&getPhoto(o).state==='ok';
+    if(usePh&&id==='sat'){drawPhoto(c,o,x,y,rad*2.4,ang,'screen');blur(c,0);const pole=mv(E.M,radec2v(...POLES.sat));extra=`Inclinación real de los anillos hoy: ${(Math.asin(dot(pole,t.map(z=>-z)))*R2D).toFixed(1)}° (la foto es de la sonda Cassini y puede mostrarlos con otra inclinación).`}
+    else if(usePh&&id!=='jup'){drawPhoto(c,o,x,y,rad,ang,'disk');if(['mer','ven','mar'].includes(id))phaseShadow(c,x,y,rad,illum,angSun,0.97);blur(c,0);extra=`Fase: ${(illum*100).toFixed(0)}% iluminado.`}
+    else if(id==='jup'){
+      if(usePh)drawPhoto(c,o,x,y,rad,ang,'disk');else drawDisk(c,x,y,rad,ang,(g2,R)=>{g2.fillStyle='#e8dcc0';g2.fillRect(-R,-R,2*R,2*R);
         const bands=[[-.62,.1,'#b89a78'],[-.35,.16,'#a67f5c'],[.12,.17,'#a8805e'],[.42,.09,'#b89a78'],[-.05,.1,'#efe4cc'],[.75,.15,'#c7b496'],[-.85,.2,'#c2ae90']];
         for(const [yy,hh,col] of bands){g2.fillStyle=col;g2.fillRect(-R,yy*R,2*R,hh*R)}
         const lon=((S.jd*870.27)%360)*D2R;const gx=Math.sin(lon)*R*0.8;if(Math.cos(lon)>0){g2.fillStyle='#c46a45';g2.beginPath();g2.ellipse(gx,0.3*R,R*0.12*Math.cos(lon)+1,R*0.07,0,0,7);g2.fill()}
@@ -1046,25 +1133,29 @@ function drawObject(c,o,t,E){
       blur(c,0);
       extra=id==='ven'?`Venus muestra fases como la Luna: ahora ${(illum*100).toFixed(0)}% iluminado.`:id==='mer'?`Fase: ${(illum*100).toFixed(0)}% iluminado.`:id==='mar'?'Disco rojizo con manchas oscuras y casquete polar (aspecto ilustrativo).':'Un pequeño disco de color: no se distinguen detalles.';
     }
-    return`${o.pl.n}: diámetro aparente ${diam.toFixed(1)}″ · a ${dist.toFixed(2)} UA. ${extra}`;
+    return photoNote(o)+`${o.pl.n}: diámetro aparente ${diam.toFixed(1)}″ · a ${dist.toFixed(2)} UA. ${extra}`;
   }
   if(o.kind==='mes'){
     const m=o.m,dimS=(DATA.mdim[MESSIER.indexOf(m)]||'5').split('x').map(Number);
     const a=(dimS[0]||5)*60/2*pxArc,b=(dimS[1]||dimS[0]||5)*60/2*pxArc;
     const br=clamp((E.lim-m.mag)/5,0.08,0.9);const rn=rnd(m.id);const pa=rn()*3.14;
     const ty=m.type;
-    if(/globular/.test(ty)){const g=c.createRadialGradient(x,y,0,x,y,a);g.addColorStop(0,`rgba(255,250,235,${br})`);g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.beginPath();c.arc(x,y,a,0,7);c.fill();
+    const simu=!(SC.photo&&getPhoto(o)&&getPhoto(o).state==='ok');
+    if(simu&&/globular/.test(ty)){const g=c.createRadialGradient(x,y,0,x,y,a);g.addColorStop(0,`rgba(255,250,235,${br})`);g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.beginPath();c.arc(x,y,a,0,7);c.fill();
       const n=Math.min(1200,Math.round(a*a*0.08*(E.sc.D/100)));for(let i=0;i<n;i++){const rr=a*Math.pow(rn(),1.8),q=rn()*6.283;c.globalAlpha=br;c.fillStyle='#fff8e6';c.beginPath();c.arc(x+Math.cos(q)*rr,y+Math.sin(q)*rr,0.6+rn()*0.6,0,7);c.fill()}c.globalAlpha=1}
+    if(SC.photo&&getPhoto(o)&&getPhoto(o).state==='ok'){c.globalAlpha=clamp(br+0.35,0.4,1);drawPhoto(c,o,x,y,Math.max(a,b)*1.25,0,'screen');c.globalAlpha=1}
+    else if(/globular/.test(ty)){}
     else if(/abierto|Grupo|Asterismo/.test(ty)){const n=Math.min(400,Math.round(40+E.sc.D/3));for(let i=0;i<n;i++){const rr=a*Math.sqrt(rn()),q=rn()*6.283;const mm=m.mag+rn()*5;if(mm>E.lim)continue;c.globalAlpha=clamp((E.lim-mm)/5,0.2,1);c.fillStyle=['#fff','#dfe8ff','#ffe9c8'][i%3];c.beginPath();c.arc(x+Math.cos(q)*rr,y+Math.sin(q)*rr,0.7+(E.lim-mm)*0.15,0,7);c.fill()}c.globalAlpha=1}
     else if(/Galaxia/.test(ty)){c.save();c.translate(x,y);c.rotate(pa);const g=c.createRadialGradient(0,0,0,0,0,a);g.addColorStop(0,`rgba(255,248,230,${br})`);g.addColorStop(0.15,`rgba(230,225,215,${br*0.5})`);g.addColorStop(1,'rgba(0,0,0,0)');c.scale(1,Math.max(0.15,b/a));c.fillStyle=g;c.beginPath();c.arc(0,0,a,0,7);c.fill();c.restore()}
     else{ // nebulosas
       const n=40;for(let i=0;i<n;i++){const q=rn()*6.283,rr=a*rn()*0.7,s=a*(0.2+rn()*0.4);const g=c.createRadialGradient(x+Math.cos(q)*rr,y+Math.sin(q)*rr*b/a,0,x+Math.cos(q)*rr,y+Math.sin(q)*rr*b/a,s);
         const tint=/planetaria/.test(ty)?'170,230,215':'205,225,215';g.addColorStop(0,`rgba(${tint},${br*0.25})`);g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.beginPath();c.arc(x+Math.cos(q)*rr,y+Math.sin(q)*rr*b/a,s,0,7);c.fill()}
       if(m.id==='M42'){c.fillStyle='#fff';for(const [dx,dy] of [[-3,-2],[3,-3],[-1,3],[4,2]]){c.beginPath();c.arc(x+dx*pxArc*3,y+dy*pxArc*3,1.4,0,7);c.fill()}}}
-    return`${m.type} · magnitud ${m.mag} · tamaño ${DATA.mdim[MESSIER.indexOf(m)]||'?'}′. Por el ocular se ve en tonos grises: el ojo no distingue colores con tan poca luz. ${a<4?'Bajá el aumento para encuadrarlo mejor… o subilo si se ve muy chico.':a>R0guess()?'Es más grande que el campo: probá con menos aumento.':''}`;
+    return photoNote(o)+`${m.type} · magnitud ${m.mag} · tamaño ${DATA.mdim[MESSIER.indexOf(m)]||'?'}′. Por el ocular se ve en tonos grises: el ojo no distingue colores con tan poca luz. ${a<4?'Bajá el aumento para encuadrarlo mejor… o subilo si se ve muy chico.':a>R0guess()?'Es más grande que el campo: probá con menos aumento.':''}`;
   }
   return'';
 }
+function photoNote(o){if(!SC.photo)return'';const P=getPhoto(o);if(!P)return'';if(P.state==='loading')return'<i>Cargando foto real…</i><br>';if(P.state==='err')return'<i>Sin conexión: se muestra la simulación.</i><br>';return`📷 Foto real (Wikipedia: NASA/ESA/observatorios). Un telescopio de aficionado muestra menos detalle y menos color.<br>`}
 const R0guess=()=>Math.min(scv.clientWidth-16,scv.clientHeight*0.6)/2;
 function angOfWest(E,t){ // ángulo en pantalla de la dirección oeste celeste
   const ncp=mv(E.Hm,[0,0,1]);const east=vnorm(cross(ncp,t));const p=[t[0]-east[0]*0.01,t[1]-east[1]*0.01,t[2]-east[2]*0.01];
@@ -1072,6 +1163,8 @@ function angOfWest(E,t){ // ángulo en pantalla de la dirección oeste celeste
 }
 $('scClose').onclick=closeScope;
 $('scInv').onclick=()=>{SC.invert=!SC.invert;renderScopeUI()};
+$('scPhoto').onclick=()=>{SC.photo=!SC.photo;LS.set('sphoto',SC.photo);renderScopeUI()};
+$('scZoom').onclick=()=>{SC.zoom={1:3,3:8,8:1}[SC.zoom];renderScopeUI()};
 $('scopeBtn').onclick=()=>{if(centerObj)openScope(centerObj)};
 
 // ======================= Inicio =======================
@@ -1089,6 +1182,7 @@ applyRed();requestAnimationFrame(draw);
 let deferred=null;
 addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;$('bInstall').style.display='flex'});
 $('bInstall').onclick=async()=>{if(!deferred)return;deferred.prompt();await deferred.userChoice;deferred=null;$('bInstall').style.display='none'};
+if('serviceWorker' in navigator&&navigator.serviceWorker.controller){let rl=false;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!rl){rl=true;location.reload()}})}
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){try{navigator.serviceWorker.register('sw.js').catch(()=>{})}catch(e){}}
 </script>
 </body>
