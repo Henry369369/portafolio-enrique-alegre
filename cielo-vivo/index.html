@@ -379,9 +379,9 @@ const S={
 let camF=[0,1,0],camR=[1,0,0],camU=[0,0,1];
 
 // ======================= Canvas =======================
-const cv=$('sky'),ctx=cv.getContext('2d');
+const cv=$('sky');let ctx=cv.getContext('2d');
 let W=0,H=0,DPR=1,scale=1;
-function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)}
+function resize(){DPR=Math.min(window.devicePixelRatio||1,2.5);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)}
 addEventListener('resize',resize);resize();
 
 function setManualCam(){
@@ -813,48 +813,63 @@ $('siteBack').onclick=()=>{leaveSite();toast('De vuelta en tu cielo de hoy');if(
 // ======================= Suelo con mapa real (satélite / calles) =======================
 const TILE={sat:z=>(x,y)=>`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`,
             calles:z=>(x,y)=>`https://tile.openstreetmap.org/${z}/${x}/${y}.png`};
-const GT={canvas:document.createElement('canvas'),ready:false,gen:0,src:null,lat:null,lon:null,z:16,tx0:0,ty0:0};
-GT.canvas.width=GT.canvas.height=1536;GT.ctx=GT.canvas.getContext('2d');
+function mkGT(z,n){const c=document.createElement('canvas');c.width=c.height=n*256;return{canvas:c,ctx:c.getContext('2d'),ready:false,gen:0,src:null,lat:null,lon:null,z,n,tx0:0,ty0:0}}
+const GTS=[mkGT(15,6),mkGT(18,8)]; // lejos (±3 km) y cerca (±500 m, ~0,6 m por píxel)
 function merc(lat,lon,z){const n=2**z,s=Math.sin(clamp(lat,-85,85)*D2R);return{x:(lon+180)/360*256*n,y:(0.5-Math.log((1+s)/(1-s))/(4*Math.PI))*256*n}}
-function buildGroundTex(lat,lon,src){
-  const gen=++GT.gen,z=GT.z,p=merc(lat,lon,z);GT.src=src;GT.lat=lat;GT.lon=lon;GT.ready=false;
-  GT.tx0=Math.floor(p.x/256)-3;GT.ty0=Math.floor(p.y/256)-3;
-  GT.ctx.fillStyle=src==='sat'?'#1c2618':'#e8e4dc';GT.ctx.fillRect(0,0,1536,1536);
+function buildGroundTex(G,lat,lon,src){
+  const gen=++G.gen,z=G.z,p=merc(lat,lon,z),h=G.n/2;G.src=src;G.lat=lat;G.lon=lon;G.ready=false;
+  G.tx0=Math.floor(p.x/256)-h;G.ty0=Math.floor(p.y/256)-h;
+  G.ctx.fillStyle=src==='sat'?'#1c2618':'#e8e4dc';G.ctx.fillRect(0,0,G.canvas.width,G.canvas.height);
   const url=TILE[src](z);
-  for(let j=0;j<6;j++)for(let i=0;i<6;i++){const im=new Image();im.crossOrigin='anonymous';
-    im.onload=()=>{if(gen!==GT.gen)return;GT.ctx.drawImage(im,i*256,j*256);GT.ready=true};
-    im.onerror=()=>{if(im.crossOrigin){im.crossOrigin=null;im.src=url(GT.tx0+i,GT.ty0+j)}};
-    im.src=url(GT.tx0+i,GT.ty0+j)}
+  for(let j=0;j<G.n;j++)for(let i=0;i<G.n;i++){const im=new Image();im.crossOrigin='anonymous';
+    im.onload=()=>{if(gen!==G.gen)return;G.ctx.drawImage(im,i*256,j*256);G.ready=true;G.loads=(G.loads||0)+1};
+    im.onerror=()=>{if(im.crossOrigin){im.crossOrigin=null;im.src=url(G.tx0+i,G.ty0+j)}};
+    im.src=url(G.tx0+i,G.ty0+j)}
 }
 function drawTri(img,P0,P1,P2,u0,v0,u1,v1,u2,v2){
   const du1=u1-u0,dv1=v1-v0,du2=u2-u0,dv2=v2-v0,det=du1*dv2-du2*dv1;if(Math.abs(det)<1e-9)return;
   const dx1=P1.x-P0.x,dy1=P1.y-P0.y,dx2=P2.x-P0.x,dy2=P2.y-P0.y;
   const a=(dx1*dv2-dx2*dv1)/det,b=(dy1*dv2-dy2*dv1)/det,c=(dx2*du1-dx1*du2)/det,d=(dy2*du1-dy1*du2)/det;
   const e=P0.x-a*u0-c*v0,f=P0.y-b*u0-d*v0;
-  const mx=(P0.x+P1.x+P2.x)/3,my=(P0.y+P1.y+P2.y)/3,ex=p=>[p.x+(p.x-mx)*0.04+Math.sign(p.x-mx)*0.6,p.y+(p.y-my)*0.04+Math.sign(p.y-my)*0.6];
+  const mx=(P0.x+P1.x+P2.x)/3,my=(P0.y+P1.y+P2.y)/3,ex=p=>[p.x+(p.x-mx)*0.03+Math.sign(p.x-mx)*0.5,p.y+(p.y-my)*0.03+Math.sign(p.y-my)*0.5];
   ctx.save();ctx.beginPath();ctx.moveTo(...ex(P0));ctx.lineTo(...ex(P1));ctx.lineTo(...ex(P2));ctx.closePath();ctx.clip();
-  ctx.transform(a,b,c,d,e,f);ctx.drawImage(img,0,0);ctx.restore();
+  ctx.transform(a,b,c,d,e,f);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(img,0,0);ctx.restore();
 }
-const GH=45,GRMAX=1500,DEPS=[90,74,60,48,38,30,23,17.5,13,9.5,7,5,3.5,Math.atan(GH/GRMAX)*R2D];
+const GH=40; // altura virtual del observador (m): cuanto más abajo mirás, más cerca ves
+function depsFor(rmin,rmax){const out=[];const d0=rmin<=0?90:Math.atan(GH/rmin)*R2D,d1=Math.atan(GH/rmax)*R2D;const N=12;for(let i=0;i<=N;i++){const t=i/N;out.push(d0+(d1-d0)*(1-Math.pow(1-t,1.6)))}return out}
+const RINGS=[{G:0,deps:depsFor(380,3000)},{G:1,deps:depsFor(0,420)}];
+const GCACHE={c:document.createElement('canvas'),key:''};
 function drawGroundMap(dayF){
   const src=S.layers.gmap;if(!src||src==='liso')return;
-  if(GT.src!==src||GT.lat==null||Math.hypot((S.lat-GT.lat)*111320,(S.lon-GT.lon)*111320*Math.cos(S.lat*D2R))>350)buildGroundTex(S.lat,S.lon,src);
-  if(!GT.ready)return;
-  const z=GT.z,mpp=156543.03392*Math.cos(S.lat*D2R)/2**z,o=merc(S.lat,S.lon,z),u0=o.x-GT.tx0*256,v0=o.y-GT.ty0*256;
-  const AZS=[];for(let a=0;a<=360;a+=15)AZS.push(a);
-  const grid=DEPS.map(dep=>{const dist=dep>=89.9?0:GH/Math.tan(dep*D2R);return AZS.map(az=>{const p=project(altaz2v(-dep,az));
-    return{p:p&&p.cz>-0.35?p:null,u:u0+dist*Math.sin(az*D2R)/mpp,v:v0-dist*Math.cos(az*D2R)/mpp}})});
-  const on=q=>q.p.x>-200&&q.p.x<W+200&&q.p.y>-200&&q.p.y<H+200;
-  for(let i=0;i<grid.length-1;i++)for(let j=0;j<AZS.length-1;j++){
-    const A=grid[i][j],B=grid[i][j+1],C=grid[i+1][j+1],D=grid[i+1][j];if(!A.p||!B.p||!C.p||!D.p)continue;if(!on(A)&&!on(B)&&!on(C)&&!on(D))continue;
-    if(i>0)drawTri(GT.canvas,A.p,B.p,C.p,A.u,A.v,B.u,B.v,C.u,C.v);
-    drawTri(GT.canvas,A.p,C.p,D.p,A.u,A.v,C.u,C.v,D.u,D.v);
+  for(const G of GTS){const lim=G.z===18?120:600;
+    if(G.src!==src||G.lat==null||Math.hypot((S.lat-G.lat)*111320,(S.lon-G.lon)*111320*Math.cos(S.lat*D2R))>lim)buildGroundTex(G,S.lat,S.lon,src)}
+  const key=[...camF,...camU].map(x=>x.toFixed(3)).join()+S.fov.toFixed(1)+W+'x'+H+GTS.map(G=>G.gen+':'+(G.loads||0)).join()+S.lat.toFixed(5)+S.lon.toFixed(5)+Math.round(dayF*20);
+  if(key!==GCACHE.key){
+    const C=GCACHE.c;if(C.width!==cv.width||C.height!==cv.height){C.width=cv.width;C.height=cv.height}
+    const cc=C.getContext('2d');cc.setTransform(DPR,0,0,DPR,0,0);cc.clearRect(0,0,W,H);
+    const main=ctx;ctx=cc;try{renderGroundMap(dayF,src)}finally{ctx=main}
+    GCACHE.key=key;
   }
-  // oscurecer de noche
-  const dark=0.62*(1-dayF);if(dark>0.02)drawGround(dayF,`rgba(0,0,12,${dark})`,true);
-  // "vos estás acá"
-  const pn=project([0,0,-1]);if(pn&&pn.cz>-0.3&&inScr(pn)){ctx.fillStyle='#2f7bff';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(pn.x,pn.y,7,0,7);ctx.fill();ctx.stroke();
+  ctx.drawImage(GCACHE.c,0,0,W,H);
+  const pn=project([0,0,-1]);if((GTS[0].ready||GTS[1].ready)&&pn&&pn.cz>-0.3&&inScr(pn)){ctx.fillStyle='#2f7bff';ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(pn.x,pn.y,7,0,7);ctx.fill();ctx.stroke();
     ctx.fillStyle='#fff';ctx.font='700 12px system-ui';ctx.textAlign='center';ctx.fillText(S.site?S.site.name:'Vos estás acá',pn.x,pn.y-12);ctx.textAlign='left'}
+}
+function renderGroundMap(dayF,src){
+  const AZS=[];for(let a=0;a<=360;a+=15)AZS.push(a);
+  const on=q=>q.p.x>-300&&q.p.x<W+300&&q.p.y>-300&&q.p.y<H+300;
+  for(const ring of RINGS){const G=GTS[ring.G];if(!G.ready)continue;
+    const z=G.z,mpp=156543.03392*Math.cos(S.lat*D2R)/2**z,o=merc(S.lat,S.lon,z),u0=o.x-G.tx0*256,v0=o.y-G.ty0*256;
+    const grid=ring.deps.map(dep=>{const dist=dep>=89.9?0:GH/Math.tan(dep*D2R);return AZS.map(az=>{const p=project(altaz2v(-dep,az));
+      return{p:p&&p.cz>-0.35?p:null,u:u0+dist*Math.sin(az*D2R)/mpp,v:v0-dist*Math.cos(az*D2R)/mpp}})});
+    for(let i=0;i<grid.length-1;i++)for(let j=0;j<AZS.length-1;j++){
+      const A=grid[i][j],B=grid[i][j+1],C=grid[i+1][j+1],D=grid[i+1][j];if(!A.p||!B.p||!C.p||!D.p)continue;if(!on(A)&&!on(B)&&!on(C)&&!on(D))continue;
+      if(Math.hypot(A.p.x-C.p.x,A.p.y-C.p.y)<0.8&&Math.hypot(B.p.x-D.p.x,B.p.y-D.p.y)<0.8)continue;
+      drawTri(G.canvas,A.p,B.p,C.p,A.u,A.v,B.u,B.v,C.u,C.v);
+      drawTri(G.canvas,A.p,C.p,D.p,A.u,A.v,C.u,C.v,D.u,D.v);
+    }
+  }
+  if(!GTS[0].ready&&!GTS[1].ready)return;
+  const dark=0.55*(1-dayF);if(dark>0.02)drawGround(dayF,`rgba(0,0,12,${dark})`,true);
 }
 
 // ======================= Fotos reales (Wikipedia / NASA / ESA) =======================
@@ -898,8 +913,8 @@ function dest(lat,lon,az,m){const dl=m*Math.cos(az*D2R)/111320,dn=m*Math.sin(az*
 function initMap(){
   const p=myPos();
   map=L.map('map',{zoomControl:false,attributionControl:true}).setView([p.lat,p.lon],17);
-  const calles=mapCalles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});
-  const sat=mapSat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'© Esri'});
+  const calles=mapCalles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,maxNativeZoom:19,detectRetina:true,attribution:'© OpenStreetMap'});
+  const sat=mapSat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,maxNativeZoom:19,detectRetina:true,attribution:'© Esri'});
   calles.addTo(map);L.control.layers({'Calles':calles,'Satélite':sat},null,{position:'topleft'}).addTo(map);
   map.on('click',e=>{if(!$('mapBox').classList.contains('big'))return;picked=e.latlng;
     if(pickMk)pickMk.setLatLng(picked);else pickMk=L.marker(picked).addTo(map);$('mapUse').style.display='block';updateMap(false)});

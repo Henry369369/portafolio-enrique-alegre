@@ -1,5 +1,5 @@
 // Service worker: primero intenta la red (para recibir actualizaciones) y si no hay conexión usa lo guardado
-const CACHE='cielo-vivo-v4';
+const CACHE='cielo-vivo-v5';
 const FILES=['./','./index.html','./data.js','./manifest.json','./icon-192.png','./icon-512.png','./leaflet/leaflet.js','./leaflet/leaflet.css'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));self.clients.claim()});
