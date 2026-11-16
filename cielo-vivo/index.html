@@ -199,6 +199,7 @@ input[type=range]{width:100%}
     <div id="aiLog"></div>
     <div class="row" style="flex-wrap:nowrap"><input type="text" id="aiIn" placeholder="Escribí tu pregunta…"><button class="ib" id="aiMicB" title="Hablar">🎤</button><button class="ib" id="aiSendB" title="Enviar">➤</button></div>
     <div class="row"><button class="tbtn" id="aiPhotoB">📷 Identificar en una foto</button><button class="tbtn" id="aiSpeak">🔊 Voz activada</button><button class="tbtn" id="aiStop" style="display:none">⏹ Callar</button><button class="tbtn" id="aiTalk">🗣️ Conversación</button><button class="tbtn" id="aiVozB">🎚️ Voz</button><button class="tbtn" id="aiSysB">✏️ Instrucciones</button><button class="tbtn" id="aiChange">🔑 Cambiar clave</button><button class="tbtn" id="aiForget">🗑️ Borrar clave</button></div>
+    <div class="row" style="font-size:12px;color:var(--dim)">Modelo de IA: <select id="aiModelSel" style="background:#0a1030;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:4px;font-size:12px"><option>automático</option></select></div>
     <div id="aiVozBox" style="display:none;margin-top:8px"><label style="font-size:13px;color:var(--dim)">Voz de Astro (las voces dependen de tu celular):</label>
       <select id="aiVoz" style="width:100%;background:#0a1030;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:14px;margin:4px 0"></select>
       <label style="font-size:13px;color:var(--dim)">Velocidad: <b id="aiRateTxt"></b></label><input type="range" id="aiRate" min="0.7" max="1.5" step="0.1">
@@ -1598,7 +1599,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden){if(watchId
 rearmAlerts();
 
 // ======================= Asistente con IA (Gemini) =======================
-const AI={hist:[],busy:false,model:LS.get('aiModel',''),speak:LS.get('aiSpeak',true),talk:false};
+const AI={models:null,ctrl:null,hist:[],busy:false,model:LS.get('aiModel',''),speak:LS.get('aiSpeak',true),talk:false};
 const aiKey=()=>LS.get('aiKey','');
 function esc(t){return t.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
 function md(t){return esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/(^|\n)[*-] /g,'$1• ').replace(/(^|\n)#+ (.+)/g,'$1<b>$2</b>').replace(/\n/g,'<br>')}
@@ -1607,18 +1608,8 @@ function openAI(prefill){
   openP('pAI');$('aiSetup').style.display=aiKey()?'none':'block';$('aiChat').style.display=aiKey()?'block':'none';
   $('aiSpeak').classList.toggle('on',AI.speak);$('aiSpeak').textContent=AI.speak?'🔊 Voz activada':'🔇 Voz apagada';
   if(!$('aiLog').children.length&&aiKey())aiAdd('bot','¡Hola! Soy Astro, el asistente de Cielo Vivo. Sé qué hay en tu cielo ahora mismo y hacia dónde estás apuntando. Preguntame lo que quieras, escribiendo o con el 🎤.');
+  if(aiKey())loadModels(aiKey()).then(()=>{if(!AI.model)pickModel(aiKey());else fillModelSel()});
   if(prefill){$('aiIn').value=prefill;aiSend()}
-}
-async function pickModel(key){
-  if(AI.model)return AI.model;
-  try{const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key='+encodeURIComponent(key));const j=await r.json();
-    const ok=(j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')).map(m=>m.name.replace('models/',''))
-      .filter(n=>/^gemini-[\d.]+-flash$/.test(n)||n==='gemini-flash-latest');
-    const ver=n=>parseFloat((n.match(/gemini-([\d.]+)/)||[0,0])[1]);
-    ok.sort((a,b)=>(b==='gemini-flash-latest'?-1:ver(b))-(a==='gemini-flash-latest'?-1:ver(a)));
-    AI.model=ok[0]||'gemini-flash-latest';
-  }catch(e){AI.model='gemini-flash-latest'}
-  return AI.model;
 }
 function skyContext(){
   const P=precessionMatrix(S.jd),Hm=horizMatrix(S.jd,S.lat,S.lon),M=mmul(Hm,P);
@@ -1642,30 +1633,76 @@ function skyContext(){
 }
 const AI_SYS_DEF="Sos \"Astro\", el asistente de Cielo Vivo, una app de astronomía creada por un profesor de informática de Villa Carlos Paz (Córdoba, Argentina). La usan curiosos, docentes y estudiantes de secundaria.\n\nCÓMO HABLÁS\n- Español rioplatense (voseo), claro, cálido y entusiasta, como un buen divulgador.\n- Respuestas cortas para leer en el celular: 2 a 5 oraciones o una lista breve. Solo te extendés si te piden una actividad, planificación, quiz o explicación detallada.\n- Explicá los términos técnicos con palabras simples la primera vez que los uses.\n\nCÓMO USÁS LOS DATOS\n- Con cada pregunta recibís un bloque [Datos del cielo en este momento], calculado por la app: lugar, fecha y hora, altura del Sol, fase de la Luna, hacia dónde apunta el usuario, constelaciones y objetos en pantalla (con altura y acimut) y planetas sobre el horizonte. Tomalo como la verdad sobre el cielo actual.\n- Para indicar dónde mirar, usá puntos cardinales (N, NE, E…) y la altura en grados; podés agregar una referencia con la mano: el puño con el brazo extendido mide unos 10°.\n- Si algo está bajo el horizonte, es de día o la Luna llena tapa lo débil, decilo.\n- Si la fecha no es la actual (recreación histórica de un monumento), aclaralo y respondé para esa época.\n- No inventes datos. Si un dato no está en el bloque y no estás seguro, decí que no lo sabés con certeza.\n\nFOTOS\n- Si recibís una foto, identificá los astros comparando con los datos del cielo y la dirección de la cámara. Si no se distingue bien, decilo y sugerí cómo sacar una mejor (sin luces cerca, celular apoyado, modo noche).\n\nCONTENIDO\n- Podés contar mitos y leyendas: aclarales de qué cultura son. Incluí las de los pueblos originarios de Sudamérica (incas, mapuches, guaraníes, qom, entre otros) cuando existan, con respeto y sin inventar.\n- Separá siempre lo que es dato científico de lo que es mito o hipótesis (por ejemplo, las alineaciones de las pirámides).\n\nPARA DOCENTES\n- Si te piden una actividad o planificación: título, curso sugerido, duración, objetivos, materiales (incluida la app Cielo Vivo y qué botones usar), pasos, preguntas de cierre y una forma simple de evaluar.\n\nSEGURIDAD\n- Nunca recomiendes mirar el Sol sin un filtro solar certificado, ni a simple vista ni con binoculares o telescopio.\n- Para salidas nocturnas con estudiantes, recordá ir acompañados y a lugares seguros.";
 const aiSys=()=>LS.get('aiSys','')||AI_SYS_DEF;
+function fetchT(url,opts={},ms=20000,ctrl){const c=ctrl||new AbortController();const t=setTimeout(()=>c.abort('timeout'),ms);return fetch(url,{...opts,signal:c.signal}).finally(()=>clearTimeout(t))}
+async function loadModels(key){
+  if(AI.models)return AI.models;
+  try{const r=await fetchT('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key='+encodeURIComponent(key),{},12000);const j=await r.json();
+    AI.models=(j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')).map(m=>m.name.replace('models/',''))
+      .filter(n=>/^gemini-([\d.]+-)?flash(-lite)?(-latest)?$/.test(n)||/^gemini-[\d.]+-flash(-lite)?$/.test(n));
+  }catch(e){AI.models=[]}
+  if(!AI.models.length)AI.models=['gemini-flash-latest','gemini-flash-lite-latest','gemini-2.5-flash','gemini-2.5-flash-lite'];
+  return AI.models;
+}
+const verOf=n=>parseFloat((n.match(/gemini-([\d.]+)/)||[0,99])[1]);
+async function pickModel(key,preferLite){
+  const ms=await loadModels(key);
+  if(AI.model&&!preferLite)return AI.model;
+  const lite=ms.filter(n=>/lite/.test(n)),full=ms.filter(n=>!/lite/.test(n));
+  const sortV=a=>a.slice().sort((x,y)=>verOf(y)-verOf(x));
+  const pick=preferLite?(sortV(lite)[0]||sortV(full)[0]):(sortV(full)[0]||sortV(lite)[0]);
+  if(!preferLite){AI.model=pick;LS.set('aiModel',pick)}
+  fillModelSel();return pick;
+}
+function fillModelSel(){const sel=$('aiModelSel');if(!sel||!AI.models)return;sel.innerHTML=AI.models.map(m=>`<option ${m===AI.model?'selected':''}>${m}</option>`).join('')}
+function thinkCfg(model,noThink){if(noThink===false)return undefined;const v=verOf(model);return v>=3?{thinkingLevel:'low'}:v>=2.5?{thinkingBudget:0}:undefined}
+// Pide la respuesta en modo "streaming": el texto va apareciendo a medida que Gemini lo escribe
+async function geminiStream(key,model,body,onText,ctrl,useThink){
+  const gc={...body.generationConfig};const tc=useThink===false?undefined:thinkCfg(model);if(tc)gc.thinkingConfig=tc;
+  const r=await fetchT(`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({...body,generationConfig:gc})},25000,ctrl);
+  if(!r.ok){let m='';try{const j=await r.json();m=j.error&&j.error.message||''}catch(e){}const err=new Error(m||('HTTP '+r.status));err.status=r.status;throw err}
+  const rd=r.body.getReader(),dec=new TextDecoder();let buf='',txt='';
+  while(true){const {done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});let i;
+    while((i=buf.indexOf('\n'))>=0){const line=buf.slice(0,i).trim();buf=buf.slice(i+1);if(!line.startsWith('data:'))continue;
+      try{const j=JSON.parse(line.slice(5));const t=(j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts||[]).filter(p=>!p.thought).map(p=>p.text||'').join('');if(t){txt+=t;onText(txt)}}catch(e){}}}
+  return txt.trim();
+}
 async function aiSend(img){
-  const q=$('aiIn').value.trim();if(!q&&!img)return;if(AI.busy)return;const key=aiKey();if(!key){openAI();return}
-  $('aiIn').value='';aiAdd('me',esc(q||'¿Qué hay en esta foto?')+(img?'<br><img src="data:image/jpeg;base64,'+img+'" style="max-width:120px;border-radius:8px;margin-top:4px">':''));
-  const wait=aiAdd('bot','<i>Pensando…</i>');AI.busy=true;
+  const q=$('aiIn').value.trim();if(!q&&!img)return;
+  if(AI.busy){toast('Esperá a que termine la respuesta o tocá Cancelar');return}
+  const key=aiKey();if(!key){openAI();return}
+  shutUp();$('aiIn').value='';aiAdd('me',esc(q||'¿Qué hay en esta foto?')+(img?'<br><img src="data:image/jpeg;base64,'+img+'" style="max-width:120px;border-radius:8px;margin-top:4px">':''));
+  const wait=aiAdd('bot','');const ctrl=new AbortController();AI.ctrl=ctrl;AI.busy=true;const t0=Date.now();
+  const status=()=>{if(!wait.dataset.txt)wait.innerHTML=`<i>Pensando… ${Math.round((Date.now()-t0)/1000)} s</i> <button class="tbtn" style="margin-left:6px">✕ Cancelar</button>`;const b=wait.querySelector('button');if(b)b.onclick=()=>{ctrl.abort('user')}};
+  status();const tick=setInterval(status,1000);
   const parts=[{text:`[Datos del cielo en este momento]\n${skyContext()}\n\n[Pregunta]\n${q||'¿Qué astros se ven en esta foto? Identificalos usando los datos del cielo.'}`}];
   if(img)parts.push({inlineData:{mimeType:'image/jpeg',data:img}});
-  const contents=[...AI.hist.slice(-10),{role:'user',parts}];
+  const body={systemInstruction:{parts:[{text:aiSys()}]},contents:[...AI.hist.slice(-10),{role:'user',parts}],generationConfig:{temperature:0.6,maxOutputTokens:1200}};
+  const show=t=>{wait.dataset.txt='1';wait.innerHTML=md(t);$('aiLog').scrollTop=1e9};
+  let txt='';
   try{
-    const model=await pickModel(key);
-    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},
-      body:JSON.stringify({systemInstruction:{parts:[{text:aiSys()}]},contents,generationConfig:{temperature:0.6,maxOutputTokens:900}})});
-    const j=await r.json();
-    if(!r.ok){const m=j.error&&j.error.message||'';
-      if(r.status===429)throw new Error('Llegaste al límite de consultas gratis por ahora. Probá de nuevo en un rato.');
-      if(r.status===400&&/API key/i.test(m)||r.status===403)throw new Error('La clave no funciona. Revisala en ☰ → 🤖 → Cambiar clave.');
-      if(r.status===404){AI.model='';LS.set('aiModel','');throw new Error('El modelo de IA cambió de nombre. Volvé a preguntar y elijo otro.')}
-      throw new Error('Error de la IA: '+m)}
-    const txt=(j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts||[]).map(p=>p.text||'').join('').trim()||'(Sin respuesta)';
+    // intento con ajuste de "pensamiento" corto; si el modelo no lo acepta, sin él
+    const attempt=async(m,c)=>{try{return await geminiStream(key,m,body,show,c)}catch(e){if(e.status===400&&/think/i.test(e.message))return await geminiStream(key,m,body,show,c,false);throw e}};
+    let model=await pickModel(key);
+    try{txt=await attempt(model,ctrl)}
+    catch(e){
+      if(ctrl.signal.aborted&&ctrl.signal.reason==='user')throw new Error('Cancelado.');
+      if(e.status===429)throw new Error('Llegaste al límite de consultas gratis por ahora. Probá de nuevo en un rato o elegí otro modelo abajo.');
+      if(e.status===403||(e.status===400&&/API key/i.test(e.message)))throw new Error('La clave no funciona. Revisala con 🔑 Cambiar clave.');
+      if(e.status===404||ctrl.signal.aborted||e.name==='AbortError'||e.status>=500){ // modelo inexistente, caído o demasiado lento: probar uno más rápido
+        if(e.status===404){AI.model='';LS.set('aiModel','');AI.models=(AI.models||[]).filter(x=>x!==model)}
+        const lite=await pickModel(key,true);if(!lite||lite===model)throw new Error('La IA tardó demasiado en responder. Probá de nuevo.');
+        wait.dataset.txt='';const c2=new AbortController();AI.ctrl=c2;
+        txt=await attempt(lite,c2);if(txt)toast('Usé un modelo más rápido ('+lite+')',3000);
+      }else throw e;
+    }
+    if(!txt)throw new Error('La IA no devolvió texto. Probá reformular la pregunta.');
     AI.hist.push({role:'user',parts:[{text:q||'(foto)'}]},{role:'model',parts:[{text:txt}]});
-    wait.innerHTML=md(txt);
+    show(txt);
     if(AI.speak||AI.talk)speak(txt,()=>{if(AI.talk&&$('pAI').style.display==='block')setTimeout(()=>{if(AI.talk&&!rec)aiMic()},400)});
-  }catch(e){wait.innerHTML='⚠️ '+esc(e.message.includes('Failed to fetch')?'Sin conexión a internet.':e.message)}
-  AI.busy=false;
+  }catch(e){const m=e.message||'';wait.innerHTML='⚠️ '+esc(/Failed to fetch|NetworkError|network/i.test(m)?'Sin conexión a internet.':/abort/i.test(m)||e.name==='AbortError'?'La IA tardó demasiado en responder. Probá de nuevo.':m)}
+  clearInterval(tick);AI.busy=false;AI.ctrl=null;
 }
+
 function aiPhoto(){
   const v=$('arVideo');
   if(S.ar&&v.videoWidth){const c=document.createElement('canvas');const k=Math.min(1,1024/Math.max(v.videoWidth,v.videoHeight));c.width=v.videoWidth*k;c.height=v.videoHeight*k;c.getContext('2d').drawImage(v,0,0,c.width,c.height);aiSend(c.toDataURL('image/jpeg',0.8).split(',')[1]);return}
@@ -1699,6 +1736,7 @@ $('aiChange').onclick=()=>{$('aiSetup').style.display='block';$('aiChat').style.
 $('aiForget').onclick=()=>{LS.set('aiKey','');AI.hist=[];$('aiLog').innerHTML='';openAI();toast('Clave borrada de este dispositivo')};
 document.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{$('aiIn').value=b.dataset.q;aiSend()});
 $('bAI').onclick=()=>openAI();
+$('aiModelSel').onchange=e=>{AI.model=e.target.value;LS.set('aiModel',AI.model);toast('Modelo: '+AI.model)};
 $('aiSysB').onclick=()=>{const b=$('aiSysBox');const on=b.style.display==='none';b.style.display=on?'block':'none';if(on)$('aiSysTxt').value=aiSys()};
 $('aiSysSave').onclick=()=>{const t=$('aiSysTxt').value.trim();LS.set('aiSys',t===AI_SYS_DEF?'':t);AI.hist=[];toast('✔ Instrucciones guardadas');$('aiSysBox').style.display='none'};
 $('aiSysReset').onclick=()=>{LS.set('aiSys','');$('aiSysTxt').value=AI_SYS_DEF;AI.hist=[];toast('Instrucciones originales restauradas')};
