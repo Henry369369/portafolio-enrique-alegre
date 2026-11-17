@@ -20,6 +20,8 @@ Instalar
  Una vez instalada funciona sin internet.
 
 Uso
+ - ☰ → 🌍 Rotación de la Tierra: el cielo gira (real, ×60, ×600, ×3600) con estelas y polos celestes.
+ - ⛅ Clima real (Open-Meteo, gratis): nubes en el cielo, humedad, viento y calidad para observar. Se activa/desactiva en ⚙️.
  - 🤖 asistente con IA (Gemini, plan gratis): conoce tu cielo en ese momento; respondé por texto, voz o foto.
    La primera vez pide una clave gratuita de aistudio.google.com/apikey (queda solo en tu dispositivo).
  - 📷 realidad aumentada: el cielo dibujado sobre la imagen de la cámara.
