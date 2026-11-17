@@ -96,7 +96,7 @@ input[type=range]{width:100%}
 <canvas id="sky"></canvas>
 
 <div id="top">
-  <div id="status"><b id="stTitle">Cielo Vivo</b><br><span id="stLine"></span><br><span id="gpsLine"></span><br><span id="wxChip" style="display:none;margin-top:4px;padding:3px 8px;border-radius:10px;background:var(--panel);border:1px solid var(--line);color:var(--txt);cursor:pointer"></span></div>
+  <div id="status"><b id="stTitle">Cielo Vivo</b><br><span id="stLine"></span><br><span id="gpsLine"></span><br><span id="satChip" style="display:none;margin:4px 4px 0 0;padding:3px 8px;border-radius:10px;background:var(--panel);border:1px solid #ffcc55;color:var(--txt);cursor:pointer"></span><span id="wxChip" style="display:none;margin-top:4px;padding:3px 8px;border-radius:10px;background:var(--panel);border:1px solid var(--line);color:var(--txt);cursor:pointer"></span></div>
   <div class="tb">
     <button class="ib" id="bSensor" title="Modo sensores (mover el celular)">🧭</button>
     <button class="ib" id="bAR" title="Realidad aumentada con la cámara">📷</button>
@@ -168,13 +168,14 @@ input[type=range]{width:100%}
 <!-- Panel: más -->
 <div class="panel" id="pMore">
   <button class="tbtn x" data-close>✕</button>
-  <h2>☰ Más opciones <span style="font-size:12px;color:var(--dim)">· versión 15</span></h2>
+  <h2>☰ Más opciones <span style="font-size:12px;color:var(--dim)">· versión 16</span></h2>
   <div class="list">
     <button class="item" id="bSet">⚙️ Fecha, lugar y capas<small>Hora, coordenadas, Vía Láctea, contaminación lumínica, cielo andino…</small></button>
     <button class="item" id="bCal">🎯 Calibrar la brújula con una estrella<small>Corrige el error del norte apuntando a una estrella que reconozcas</small></button>
     <button class="item" id="bGame">🎮 Desafío: encontrá el astro<small>5 rondas con puntaje, ideal para jugar en grupo</small></button>
     <button class="item" id="bAI2">🤖 Preguntale a la IA<small>Un asistente que sabe qué hay en tu cielo ahora; también responde por voz y con fotos</small></button>
     <button class="item" id="bRot">🌍 Rotación de la Tierra<small>Mirá cómo gira el cielo, con estelas como en una foto de larga exposición</small></button>
+    <button class="item" id="bSats">🛰️ Satélites ahora<small>Cuáles están pasando y se pueden ver, con aviso por voz</small></button>
     <button class="item" id="bWx">⛅ Clima del momento<small>Nubes, humedad, viento y calidad para observar (Open-Meteo)</small></button>
     <button class="item" id="bTour">🎧 Recorrido guiado con voz<small>Te lleva por lo más lindo del cielo de esta noche</small></button>
     <button class="item" id="bInstall" style="display:none">⬇️ Instalar la app<small>Para usarla sin internet y a pantalla completa</small></button>
@@ -183,7 +184,7 @@ input[type=range]{width:100%}
 <!-- Panel: IA -->
 <div class="panel" id="pAI">
   <button class="tbtn x" data-close>✕</button>
-  <h2>🤖 Preguntale al cielo <span style="font-size:11px;color:var(--dim)">v15</span></h2>
+  <h2>🤖 Preguntale al cielo <span style="font-size:11px;color:var(--dim)">v16</span></h2>
   <div id="aiSetup">
     <p>El asistente usa <b>Gemini</b>, la IA de Google, con su plan gratuito. Necesitás una clave propia (se saca una sola vez, sin tarjeta):</p>
     <p>1. Entrá a <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--acc)">aistudio.google.com/apikey</a> con tu cuenta de Google.<br>2. Tocá <b>"Create API key"</b> (Crear clave de API) y copiala.<br>3. Pegala acá abajo.</p>
@@ -219,6 +220,12 @@ input[type=range]{width:100%}
   <h2>⛅ Clima para observar</h2>
   <div id="wxBody"></div>
   <div class="row"><button class="tbtn" id="wxRefresh">🔄 Actualizar</button></div>
+</div>
+<!-- Panel: satélites -->
+<div class="panel" id="pSats">
+  <button class="tbtn x" data-close>✕</button>
+  <h2>🛰️ Satélites sobre vos</h2>
+  <div id="satBody"></div>
 </div>
 <!-- Panel: esta noche -->
 <div class="panel" id="pTonight">
@@ -260,6 +267,8 @@ input[type=range]{width:100%}
   <label class="chk"><input type="checkbox" id="cMw" checked> Vía Láctea</label>
   <label class="chk"><input type="checkbox" id="cAndes"> Cielo andino: constelaciones oscuras incas</label>
   <label class="chk"><input type="checkbox" id="cIss" checked> Estación Espacial Internacional en vivo</label>
+  <label class="chk"><input type="checkbox" id="cSats" checked> Satélites en órbita (los más brillantes y estaciones)</label>
+  <label class="chk"><input type="checkbox" id="cStarlink"> Incluir Starlink (miles de satélites; usa más batería)</label>
   <div style="margin:6px 0"><label>Contaminación lumínica: <b id="bortleTxt"></b></label><input type="range" id="iBortle" min="1" max="9" step="1"></div>
   <label class="chk"><input type="checkbox" id="cGrid"> Cuadrícula de altura y acimut</label>
   <label class="chk"><input type="checkbox" id="cDay" checked> Simular la luz del día</label>
@@ -464,7 +473,7 @@ const S={
   jd:jdNow(),live:true,play:false,
   az:180,alt:35,fov:LS.get('fov',80),
   sensor:false,azOffset:LS.get('azOff',0),
-  layers:Object.assign({lines:true,cons:true,names:true,mes:false,ground:true,day:true,red:false,grid:false,gmap:'sat',mw:true,andes:false,iss:true,bortle:5,gh:'dron',gnight:true,wx:true,clouds:true},LS.get('layers',{})),
+  layers:Object.assign({lines:true,cons:true,names:true,mes:false,ground:true,day:true,red:false,grid:false,gmap:'sat',mw:true,andes:false,iss:true,bortle:5,gh:'dron',gnight:true,wx:true,clouds:true,sats:true,starlink:false},LS.get('layers',{})),
   gps:null,followGPS:LS.get('follow',true),allsky:false,
   site:null,target:null
 };
@@ -562,6 +571,7 @@ function draw(){
   // Estación Espacial
   if(S.layers.iss&&!ISS.rec&&!ISS.loading&&!ISS.err)loadISS();
   drawISS(M);
+  drawSats(P,dayF,sunAlt);
   // suelo
   if(S.layers.grid)drawGrid();
   if(S.layers.ground&&!S.ar){drawGround(dayF);drawGroundMap(dayF)}
@@ -573,10 +583,10 @@ function draw(){
   if(S.target)drawTarget(M,Hm,P);
   gameTick(M,Hm,P);
   // objeto en el centro de la mira
-  centerObj=null;let bd=Math.max(30,Math.min(W,H)*0.06);for(const hh of hits){if(hh.o.kind==='andes'||hh.o.kind==='iss')continue;const d=Math.hypot(hh.x-W/2,hh.y-H/2);if(d<bd){bd=d;centerObj=hh.o}}
+  centerObj=null;let bd=Math.max(30,Math.min(W,H)*0.06);for(const hh of hits){if(hh.o.kind==='andes'||hh.o.kind==='iss'||hh.o.kind==='sat')continue;const d=Math.hypot(hh.x-W/2,hh.y-H/2);if(d<bd){bd=d;centerObj=hh.o}}
   const showRet=S.sensor;$('reticle').style.display=showRet?'block':'none';
   const sb=$('scopeBtn');if(centerObj&&showRet&&!SC.open){sb.style.display='block';const lbl='🔭 Ver '+objLabel(centerObj)+' en el telescopio';if(sb.textContent!==lbl)sb.textContent=lbl}else sb.style.display='none';
-  const idle=!S.sensor&&!S.play&&!ROT.on&&!weatherAnimating()&&!GAME.on&&!TOUR.on&&performance.now()-lastAct>4000;
+  const idle=!S.sensor&&!S.play&&!ROT.on&&!weatherAnimating()&&!(S.layers.sats&&SATS.visibleNow.length)&&!GAME.on&&!TOUR.on&&performance.now()-lastAct>4000;
   if(SC.open)setTimeout(()=>requestAnimationFrame(draw),250);else if(idle)setTimeout(()=>requestAnimationFrame(draw),400);else requestAnimationFrame(draw);
   updateStatus(sunAlt);
 }
@@ -650,6 +660,7 @@ function bodyENU(name,M,Hm,P){ // devuelve vector ENU de un astro por nombre
   if(name==='sol')return mv(M,planetVecJ2000('sol',S.jd).v);
   if(name==='luna')return topoMoon(mv(Hm,moonVecOfDate(S.jd).v));
   if(name==='iss'){const L=issLook(S.jd);return L?altaz2v(L.alt,L.az):null}
+  if(name.startsWith('sat:')){const st=satByKey(name);if(!st||!window.satellite)return null;const L=satLook(st,S.jd,mv(precessionMatrix(S.jd),planetVecJ2000('sol',S.jd).v));return L&&L.az!=null?altaz2v(L.alt,L.az):null}
   const pl=PLANETS.find(p=>p.id===name);if(pl)return mv(M,planetVecJ2000(pl.id,S.jd).v);
   if(name.startsWith('M')&&MESSIER.find(m=>m.id===name))return mv(M,MESSIER.find(m=>m.id===name).v);
   const s=starByName(name);if(s)return mv(M,s.v);
@@ -784,11 +795,12 @@ function showInfo(o){
   else if(o.kind==='moon'){const ph=o.illum;const crec=moonWaxing();h=`<b>Luna</b><br>${(ph*100).toFixed(0)}% iluminada · ${phaseName(ph,crec)}<br>${pos}`}
   else if(o.kind==='sun')h=`<b>Sol</b><br>⚠️ Nunca lo mires directamente ni con binoculares.<br>${pos}`;
   else if(o.kind==='mes'){const m=o.m;h=`<b>${m.id}${m.alt?' — '+m.alt:''}</b><br>${m.type} · magnitud ${m.mag}<br>${pos}`}
+  else if(o.kind==='sat')h=`<b>🛰️ ${esc(o.s.name)}</b><br>Satélite · NORAD ${o.s.id} · a ${Math.round(o.L.h)} km de altura y ${Math.round(o.L.range)} km de vos · ${o.L.vel.toFixed(1)} km/s<br>${o.visible?'☀️ Iluminado por el Sol: <b>se puede ver a simple vista</b> si el cielo está oscuro':o.L.lit?'Iluminado, pero todavía hay mucha luz para verlo':'🌑 En la sombra de la Tierra: ahora no se ve'}<br>${pos}`;
   else if(o.kind==='iss')h=`<b>🛰️ Estación Espacial Internacional</b><br>A ${Math.round(o.L.h)} km de altura y ${Math.round(o.L.range)} km de vos · da una vuelta a la Tierra cada 90 minutos.<br>${pos}`;
   else if(o.kind==='andes')h=`<b>${o.a.n}</b><br>${o.a.t}<br><span style="font-size:12px;color:var(--dim)">Constelación oscura inca (manchas de polvo de la Vía Láctea). Posición aproximada; las figuras varían según las fuentes (Urton, 1981).</span>`;
-  const canScope=o.kind!=='iss'&&o.kind!=='andes';h+=`<div class="row" style="margin-top:8px">${canScope?'<button class="pbtn acc" id="infoScope">🔭 Telescopio</button>':''}<button class="pbtn" id="infoAI">🤖 Preguntar a la IA</button></div>`;
+  const canScope=o.kind!=='iss'&&o.kind!=='andes'&&o.kind!=='sat';h+=`<div class="row" style="margin-top:8px">${canScope?'<button class="pbtn acc" id="infoScope">🔭 Telescopio</button>':''}<button class="pbtn" id="infoAI">🤖 Preguntar a la IA</button></div>`;
   $('infoBody').innerHTML=h;$('info').style.display='block';if(canScope)$('infoScope').onclick=()=>openScope(o);
-  const nm=o.kind==='star'?(o.s.name||o.s.des||'esta estrella'):o.kind==='planet'?o.pl.n:o.kind==='mes'?o.m.id+(o.m.alt?' ('+o.m.alt+')':''):o.kind==='moon'?'la Luna':o.kind==='sun'?'el Sol':o.kind==='iss'?'la Estación Espacial':o.a.n;
+  const nm=o.kind==='star'?(o.s.name||o.s.des||'esta estrella'):o.kind==='planet'?o.pl.n:o.kind==='mes'?o.m.id+(o.m.alt?' ('+o.m.alt+')':''):o.kind==='moon'?'la Luna':o.kind==='sun'?'el Sol':o.kind==='iss'?'la Estación Espacial':o.kind==='sat'?'el satélite '+o.s.name:o.a.n;
   $('infoAI').onclick=()=>{$('info').style.display='none';openAI(`Contame sobre ${nm}: qué es, curiosidades y cómo verlo mejor desde acá.`)};
 }
 function moonWaxing(){const a=planetVecJ2000('sol',S.jd).v,P=precessionMatrix(S.jd);const sD=mv(P,a);const m1=moonVecOfDate(S.jd).v,m2=moonVecOfDate(S.jd+0.1).v;return dot(m2,sD)<dot(m1,sD)}
@@ -839,7 +851,7 @@ function selectTarget(x){
 function fillSet(){
   $('iLat').value=S.lat.toFixed(4);$('iLon').value=S.lon.toFixed(4);
   const d=fmtTime(S.jd).d;$('iY').value=d.Y;$('iM').value=d.M;$('iD').value=d.D;$('iH').value=d.h;$('iMi').value=d.mi;
-  const L=S.layers;$('cLines').checked=L.lines;$('cCons').checked=L.cons;$('cNames').checked=L.names;$('cMes').checked=L.mes;$('cGround').checked=L.ground;$('cDay').checked=L.day;$('cRed').checked=L.red;$('cGrid').checked=L.grid;markGm();$('cMw').checked=L.mw;$('cWx').checked=L.wx;$('cClouds').checked=L.clouds;$('cGnight').checked=L.gnight;$('cAndes').checked=L.andes;$('cIss').checked=L.iss;$('iBortle').value=L.bortle;$('bortleTxt').textContent=BORTLE[L.bortle];
+  const L=S.layers;$('cLines').checked=L.lines;$('cCons').checked=L.cons;$('cNames').checked=L.names;$('cMes').checked=L.mes;$('cGround').checked=L.ground;$('cDay').checked=L.day;$('cRed').checked=L.red;$('cGrid').checked=L.grid;markGm();$('cMw').checked=L.mw;$('cWx').checked=L.wx;$('cSats').checked=L.sats;$('cStarlink').checked=L.starlink;$('cClouds').checked=L.clouds;$('cGnight').checked=L.gnight;$('cAndes').checked=L.andes;$('cIss').checked=L.iss;$('iBortle').value=L.bortle;$('bortleTxt').textContent=BORTLE[L.bortle];
 }
 $('bApply').onclick=()=>{
   const lat=parseFloat($('iLat').value),lon=parseFloat($('iLon').value);
@@ -848,7 +860,7 @@ $('bApply').onclick=()=>{
   if(isFinite(Y)&&M>=1&&M<=12&&D>=1&&D<=31){const off=S.site?S.lon/15:-new Date().getTimezoneOffset()/60;S.jd=jdFromYMDh(Y,M,D,h+mi/60-off);S.live=false}
   $('pSet').style.display='none';toast('Fecha y lugar actualizados');
 };
-[['cWx','wx'],['cClouds','clouds'],['cGnight','gnight'],['cMw','mw'],['cAndes','andes'],['cIss','iss'],['cGrid','grid'],['cLines','lines'],['cCons','cons'],['cNames','names'],['cMes','mes'],['cGround','ground'],['cDay','day'],['cRed','red']].forEach(([id,k])=>$(id).onchange=e=>{S.layers[k]=e.target.checked;LS.set('layers',S.layers);applyRed()});
+[['cSats','sats'],['cStarlink','starlink'],['cWx','wx'],['cClouds','clouds'],['cGnight','gnight'],['cMw','mw'],['cAndes','andes'],['cIss','iss'],['cGrid','grid'],['cLines','lines'],['cCons','cons'],['cNames','names'],['cMes','mes'],['cGround','ground'],['cDay','day'],['cRed','red']].forEach(([id,k])=>$(id).onchange=e=>{S.layers[k]=e.target.checked;LS.set('layers',S.layers);applyRed()});
 document.querySelectorAll('[data-gm]').forEach(b=>b.onclick=()=>{S.layers.gmap=b.dataset.gm;LS.set('layers',S.layers);markGm()});
 document.querySelectorAll('[data-gh]').forEach(b=>b.onclick=()=>{S.layers.gh=b.dataset.gh;LS.set('layers',S.layers);markGm()});
 function markGm(){document.querySelectorAll('[data-gh]').forEach(b=>b.classList.toggle('on',b.dataset.gh===S.layers.gh));document.querySelectorAll('[data-gm]').forEach(b=>b.classList.toggle('on',b.dataset.gm===S.layers.gmap))}
@@ -1631,7 +1643,7 @@ function skyContext(){
   const P=precessionMatrix(S.jd),Hm=horizMatrix(S.jd,S.lat,S.lon),M=mmul(Hm,P);
   const f=v2altaz(camF);const t=fmtTime(S.jd).txt;
   const sunAlt=v2altaz(mv(M,planetVecJ2000('sol',S.jd).v)).alt;
-  const inView=hits.filter(h=>h.x>0&&h.x<W&&h.y>0&&h.y<H&&h.o.enu&&h.o.enu[2]>0).map(h=>{const a=v2altaz(h.o.enu);const n=h.o.kind==='star'?(h.o.s.name||h.o.s.des)+` (estrella, mag ${h.o.s.mag.toFixed(1)})`:h.o.kind==='planet'?h.o.pl.n+' (planeta)':h.o.kind==='mes'?h.o.m.id+(h.o.m.alt?' '+h.o.m.alt:'')+' ('+h.o.m.type+')':h.o.kind==='moon'?'Luna':h.o.kind==='sun'?'Sol':h.o.kind==='iss'?'Estación Espacial Internacional':h.o.kind==='andes'?h.o.a.n+' (constelación oscura inca)':'';
+  const inView=hits.filter(h=>h.x>0&&h.x<W&&h.y>0&&h.y<H&&h.o.enu&&h.o.enu[2]>0).map(h=>{const a=v2altaz(h.o.enu);const n=h.o.kind==='star'?(h.o.s.name||h.o.s.des)+` (estrella, mag ${h.o.s.mag.toFixed(1)})`:h.o.kind==='planet'?h.o.pl.n+' (planeta)':h.o.kind==='mes'?h.o.m.id+(h.o.m.alt?' '+h.o.m.alt:'')+' ('+h.o.m.type+')':h.o.kind==='moon'?'Luna':h.o.kind==='sun'?'Sol':h.o.kind==='iss'?'Estación Espacial Internacional':h.o.kind==='sat'?'satélite '+h.o.s.name+(h.o.visible?' (iluminado, visible)':' (en sombra)'):h.o.kind==='andes'?h.o.a.n+' (constelación oscura inca)':'';
     return{n,d:Math.hypot(h.x-W/2,h.y-H/2),s:`${n} — altura ${a.alt.toFixed(0)}°, acimut ${a.az.toFixed(0)}° (${dirName(a.az)})`}}).filter(x=>x.n).sort((a,b)=>a.d-b.d).slice(0,30).map(x=>x.s);
   const cons=CONS.map(c=>({n:c.name,v:mv(M,c.v)})).filter(c=>{const p=project(c.v);return p&&p.cz>0&&p.x>0&&p.x<W&&p.y>0&&p.y<H&&c.v[2]>0}).map(c=>c.n);
   const vis=PLANETS.map(p=>({n:p.n,a:v2altaz(mv(M,planetVecJ2000(p.id,S.jd).v))})).filter(p=>p.a.alt>0).map(p=>`${p.n} (altura ${p.a.alt.toFixed(0)}°, ${dirName(p.a.az)})`);
@@ -2011,6 +2023,87 @@ $('bWx').onclick=()=>{$('pMore').style.display='none';openWeather()};
 $('wxChip').onclick=openWeather;
 $('wxRefresh').onclick=()=>{loadWeather(true).then(openWeather)};
 $('cWx').addEventListener('change',()=>{if(S.layers.wx)loadWeather(true)});
+// ======================= Satélites en órbita (datos reales de CelesTrak) =======================
+const SATS={list:[],star:[],loading:false,err:null,t:0,last:0,lookC:new Map(),seen:new Set(),alertOn:LS.get('satAlert',false),visibleNow:[]};
+const SAT_ES={'TIANGONG':'Tiangong (estación china)','CSS (TIANHE)':'Tiangong (estación china)','HST':'Telescopio Espacial Hubble'};
+function parseTLE(txt){const L=txt.split(/\r?\n/).map(s=>s.trimEnd()).filter(Boolean);const out=[];
+  for(let i=0;i+2<L.length+1;i++){if(L[i]&&L[i+1]&&L[i+1].startsWith('1 ')&&L[i+2]&&L[i+2].startsWith('2 ')){try{const rec=satellite.twoline2satrec(L[i+1],L[i+2]);const id=+L[i+1].slice(2,7);if(id===25544){i+=2;continue}
+    const name=L[i].replace(/^0 /,'').trim();out.push({name:SAT_ES[name]||name,id,rec});}catch(e){}i+=2}}
+  return out}
+async function loadSats(){
+  if(SATS.loading)return;SATS.loading=true;
+  try{
+    await loadScript('satellite.min.js');
+    const get=async g=>{const c=LS.get('tle_'+g,null);if(c&&Date.now()-c.t<86400000)return c.txt;
+      const r=await fetchT(`https://celestrak.org/NORAD/elements/gp.php?GROUP=${g}&FORMAT=tle`,{},20000);if(!r.ok)throw new Error('HTTP '+r.status);const txt=await r.text();
+      if(!/\n1 /.test(txt))throw new Error('sin datos');try{LS.set('tle_'+g,{t:Date.now(),txt})}catch(e){}return txt};
+    const all=[];for(const g of ['stations','visual']){try{all.push(...parseTLE(await get(g)))}catch(e){const c=LS.get('tle_'+g,null);if(c)all.push(...parseTLE(c.txt))}}
+    const ids=new Set();SATS.list=all.filter(s=>!ids.has(s.id)&&ids.add(s.id));SATS.t=Date.now();SATS.err=SATS.list.length?null:'Sin datos de satélites (hace falta internet).';
+  }catch(e){SATS.err='Sin datos de satélites (hace falta internet).'}
+  SATS.loading=false;
+}
+async function loadStarlink(){
+  if(SATS.star.length||SATS.starLoading)return;SATS.starLoading=true;
+  try{await loadScript('satellite.min.js');const r=await fetchT('https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle',{},30000);SATS.star=parseTLE(await r.text()).map(s=>({...s,starlink:true}))}
+  catch(e){toast('No se pudieron bajar los datos de Starlink')}SATS.starLoading=false;
+}
+function satLook(s,jd,sunDate){
+  const d=jd2date(jd);const pv=satellite.propagate(s.rec,d);if(!pv||!pv.position||isNaN(pv.position.x))return null;
+  const gm=satellite.gstime(d);const la=satellite.ecfToLookAngles({longitude:S.lon*D2R,latitude:S.lat*D2R,height:0.6},satellite.eciToEcf(pv.position,gm));
+  const alt=la.elevation*R2D;if(alt<-2)return{alt};
+  const r=[pv.position.x,pv.position.y,pv.position.z],p=dot(r,sunDate);const lit=p>0||Math.hypot(r[0]-p*sunDate[0],r[1]-p*sunDate[1],r[2]-p*sunDate[2])>6371;
+  const v=pv.velocity;return{alt,az:norm360(la.azimuth*R2D),range:la.rangeSat,h:Math.hypot(...r)-6371,lit,vel:v?Math.hypot(v.x,v.y,v.z):0};
+}
+function drawSats(P,dayF,sunAlt){
+  if(!S.layers.sats||!window.satellite){if(S.layers.sats&&!SATS.loading&&!SATS.list.length&&!SATS.err)loadSats();return}
+  if(!SATS.list.length&&!SATS.loading&&!SATS.err)loadSats();
+  const sunDate=mv(P,planetVecJ2000('sol',S.jd).v);const dark=sunAlt<-6;
+  const groups=[SATS.list];if(S.layers.starlink){if(!SATS.star.length)loadStarlink();groups.push(SATS.star)}
+  const now=performance.now();const vis=[];
+  ctx.save();ctx.font='600 10px system-ui';
+  for(const G of groups)for(const s of G){
+    // los Starlink se recalculan cada medio segundo para no cansar al celular
+    let L;if(s.starlink){const c=SATS.lookC.get(s.id);if(c&&now-c.t<500&&Math.abs(c.jd-S.jd)<1e-4)L=c.L;else{L=satLook(s,S.jd,sunDate);SATS.lookC.set(s.id,{t:now,jd:S.jd,L})}}else L=satLook(s,S.jd,sunDate);
+    if(!L||L.alt<0)continue;
+    const visible=L.lit&&dark;if(visible&&L.alt>10)vis.push({s,L});
+    const e=altaz2v(L.alt,L.az),p=project(e);if(!p||!inScr(p))continue;
+    if(s.starlink&&!visible&&S.fov>60)continue;
+    // estela del último minuto
+    if(visible&&!s.starlink){ctx.strokeStyle='rgba(255,230,140,.35)';ctx.lineWidth=1;ctx.beginPath();let prev=null;
+      for(let k=0;k<=4;k++){const l=satLook(s,S.jd-k*15/86400,sunDate);if(!l||l.alt<0)break;const q=project(altaz2v(l.alt,l.az));if(q&&prev){ctx.moveTo(prev.x,prev.y);ctx.lineTo(q.x,q.y)}prev=q}ctx.stroke()}
+    ctx.fillStyle=visible?(s.starlink?'#cfe3ff':'#fff2b0'):'rgba(150,160,190,.55)';ctx.beginPath();ctx.arc(p.x,p.y,visible?(s.starlink?1.6:2.4):1.3,0,7);ctx.fill();
+    if(visible&&!s.starlink||(!s.starlink&&S.fov<40)){ctx.fillStyle=visible?'#ffe9a0':'rgba(170,180,210,.7)';ctx.fillText(s.name.length>22?s.name.slice(0,21)+'…':s.name,p.x+5,p.y-4)}
+    hits.push({x:p.x,y:p.y,o:{kind:'sat',s,L,enu:e,visible}});
+  }
+  ctx.restore();
+  SATS.visibleNow=vis.sort((a,b)=>b.L.alt-a.L.alt);
+  satChip(vis);if(SATS.alertOn&&S.live)satAlerts(vis);
+}
+function satChip(vis){const el=$('satChip');if(!S.layers.sats||!vis.length){el.style.display='none';return}
+  el.style.display='inline-block';el.innerHTML=`🛰️ ${vis.length===1?'Pasa ahora: <b>'+esc(vis[0].s.name)+'</b>':'<b>'+vis.length+'</b> satélites visibles ahora'}`}
+function satAlerts(vis){
+  for(const v of vis){if(v.L.alt<20||SATS.seen.has(v.s.id))continue;SATS.seen.add(v.s.id);
+    const msg=`Está pasando ${v.s.name} por el ${dirName(v.L.az)}, a ${Math.round(v.L.alt)} grados de altura.`;toast('🛰️ '+msg,6000);if(!v.s.starlink)speak(msg);break}
+  if(SATS.seen.size>500)SATS.seen.clear();
+}
+function openSatList(){
+  openP('pSats');const B=$('satBody');
+  if(!S.layers.sats){B.innerHTML='<p>Los satélites están desactivados. Activalos en ☰ → ⚙️.</p>';return}
+  if(SATS.loading){B.innerHTML='<p>Bajando las órbitas…</p>';setTimeout(openSatList,1500);return}
+  if(SATS.err){B.innerHTML=`<p>${SATS.err}</p>`;return}
+  const v=SATS.visibleNow;
+  let h=`<p>Se ven como puntos que avanzan de forma constante, sin titilar, entre 3 y 6 minutos de un horizonte al otro. Solo brillan cuando les da el Sol y vos estás a oscuras: por eso se ven al anochecer y antes del amanecer.</p>`;
+  h+=v.length?'<div class="list">'+v.map((x,i)=>`<button class="item" data-sat="${i}">${esc(x.s.name)}<small>Hacia el ${dirName(x.L.az)}, ${Math.round(x.L.alt)}° de altura · ${Math.round(x.L.h)} km de altura · ${x.L.vel.toFixed(1)} km/s</small></button>`).join('')+'</div>':'<p><b>Ahora no hay satélites iluminados sobre el horizonte.</b> Probá al anochecer o antes del amanecer.</p>';
+  h+=`<label class="chk"><input type="checkbox" id="cSatAlert" ${SATS.alertOn?'checked':''}> Avisarme (con voz) cuando pase uno visible</label>
+      <p style="font-size:12px;color:var(--dim)">Órbitas: CelesTrak (${SATS.list.length} satélites brillantes y estaciones${SATS.star.length?' + '+SATS.star.length+' Starlink':''}). Actualizado ${SATS.t?new Date(SATS.t).toLocaleString('es-AR',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'}):'—'}.</p>`;
+  B.innerHTML=h;
+  B.querySelectorAll('[data-sat]').forEach(b=>b.onclick=()=>{const x=v[+b.dataset.sat];$('pSats').style.display='none';S.target={key:'sat:'+x.s.id,label:x.s.name};if(!S.sensor){S.az=x.L.az;S.alt=clamp(x.L.alt,0,85)}});
+  $('cSatAlert').onchange=e=>{SATS.alertOn=e.target.checked;LS.set('satAlert',SATS.alertOn);if(SATS.alertOn)toast('Te aviso cuando pase un satélite visible (con la app abierta).')};
+}
+function satByKey(key){const id=+key.slice(4);return SATS.list.find(s=>s.id===id)||SATS.star.find(s=>s.id===id)}
+
+$('bSats').onclick=()=>{$('pMore').style.display='none';openSatList()};
+$('satChip').onclick=openSatList;
 // ======================= Inicio =======================
 function begin(useSensors){
   $('start').style.display='none';LS.set('started',true);

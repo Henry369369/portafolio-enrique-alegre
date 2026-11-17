@@ -20,6 +20,7 @@ Instalar
  Una vez instalada funciona sin internet.
 
 Uso
+ - 🛰️ Satélites en órbita real (CelesTrak): los más brillantes, estaciones y opcionalmente Starlink; aviso por voz cuando pasa uno visible.
  - ☰ → 🌍 Rotación de la Tierra: el cielo gira (real, ×60, ×600, ×3600) con estelas y polos celestes.
  - ⛅ Clima real (Open-Meteo, gratis): nubes en el cielo, humedad, viento y calidad para observar. Se activa/desactiva en ⚙️.
  - 🤖 asistente con IA (Gemini, plan gratis): conoce tu cielo en ese momento; respondé por texto, voz o foto.
