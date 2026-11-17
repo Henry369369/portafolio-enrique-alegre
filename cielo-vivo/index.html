@@ -168,7 +168,7 @@ input[type=range]{width:100%}
 <!-- Panel: más -->
 <div class="panel" id="pMore">
   <button class="tbtn x" data-close>✕</button>
-  <h2>☰ Más opciones <span style="font-size:12px;color:var(--dim)">· versión 14</span></h2>
+  <h2>☰ Más opciones <span style="font-size:12px;color:var(--dim)">· versión 15</span></h2>
   <div class="list">
     <button class="item" id="bSet">⚙️ Fecha, lugar y capas<small>Hora, coordenadas, Vía Láctea, contaminación lumínica, cielo andino…</small></button>
     <button class="item" id="bCal">🎯 Calibrar la brújula con una estrella<small>Corrige el error del norte apuntando a una estrella que reconozcas</small></button>
@@ -183,7 +183,7 @@ input[type=range]{width:100%}
 <!-- Panel: IA -->
 <div class="panel" id="pAI">
   <button class="tbtn x" data-close>✕</button>
-  <h2>🤖 Preguntale al cielo <span style="font-size:11px;color:var(--dim)">v14</span></h2>
+  <h2>🤖 Preguntale al cielo <span style="font-size:11px;color:var(--dim)">v15</span></h2>
   <div id="aiSetup">
     <p>El asistente usa <b>Gemini</b>, la IA de Google, con su plan gratuito. Necesitás una clave propia (se saca una sola vez, sin tarjeta):</p>
     <p>1. Entrá a <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--acc)">aistudio.google.com/apikey</a> con tu cuenta de Google.<br>2. Tocá <b>"Create API key"</b> (Crear clave de API) y copiala.<br>3. Pegala acá abajo.</p>
@@ -510,7 +510,7 @@ function draw(){
   drawSkyGlow(dayF);drawMilkyWay(M,dayF);drawAndes(M,dayF);drawPoles(Hm);drawTrails(P,dayF);
   const zoomBoost=Math.pow(80/S.fov,0.35);
   let limMag=Math.min(6.2,7.4-0.45*S.layers.bortle)-dayF*6.5+Math.log2(80/S.fov)*0.5;if(S.ar)limMag=Math.min(limMag,4.6);
-  {const w=S.layers.wx&&S.layers.clouds?wxAt(S.jd):null;if(w&&!w.out){limMag-=w.cloud/100*2.2+(w.hum>85?0.5:0)+(w.vis<10?1:0)}}
+  {const w=S.layers.wx&&S.layers.clouds?wxAt(S.jd):null;if(w&&!w.out){limMag-=w.cloud/100*0.4+(w.hum>85?0.5:0)+(w.vis<10?1:0)}}
   // líneas de constelaciones
   if(S.layers.lines){
     ctx.strokeStyle=`rgba(110,150,255,${0.45*(1-dayF*0.8)})`;ctx.lineWidth=1;ctx.beginPath();
@@ -558,7 +558,7 @@ function draw(){
   // Sol
   {const p=project(sunE);if(p&&inScr(p)){const r=Math.max(9,0.27*D2R*scale);const gg=ctx.createRadialGradient(p.x,p.y,r*0.3,p.x,p.y,r*4);gg.addColorStop(0,'rgba(255,240,180,1)');gg.addColorStop(1,'rgba(255,200,80,0)');ctx.fillStyle=gg;ctx.beginPath();ctx.arc(p.x,p.y,r*4,0,7);ctx.fill();ctx.fillStyle='#fff6d0';ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);ctx.fill();ctx.fillStyle='#ffd27a';ctx.font='600 12px system-ui';ctx.fillText('Sol',p.x+r+4,p.y+4);hits.push({x:p.x,y:p.y,o:{kind:'sun',enu:sunE}})}}
   // nubes según el clima real
-  drawClouds(dayF,illum,v2altaz(moE).alt);
+  drawClouds(dayF,illum,v2altaz(moE).alt,sunE,moE);
   // Estación Espacial
   if(S.layers.iss&&!ISS.rec&&!ISS.loading&&!ISS.err)loadISS();
   drawISS(M);
@@ -576,7 +576,7 @@ function draw(){
   centerObj=null;let bd=Math.max(30,Math.min(W,H)*0.06);for(const hh of hits){if(hh.o.kind==='andes'||hh.o.kind==='iss')continue;const d=Math.hypot(hh.x-W/2,hh.y-H/2);if(d<bd){bd=d;centerObj=hh.o}}
   const showRet=S.sensor;$('reticle').style.display=showRet?'block':'none';
   const sb=$('scopeBtn');if(centerObj&&showRet&&!SC.open){sb.style.display='block';const lbl='🔭 Ver '+objLabel(centerObj)+' en el telescopio';if(sb.textContent!==lbl)sb.textContent=lbl}else sb.style.display='none';
-  const idle=!S.sensor&&!S.play&&!ROT.on&&!GAME.on&&!TOUR.on&&performance.now()-lastAct>4000;
+  const idle=!S.sensor&&!S.play&&!ROT.on&&!weatherAnimating()&&!GAME.on&&!TOUR.on&&performance.now()-lastAct>4000;
   if(SC.open)setTimeout(()=>requestAnimationFrame(draw),250);else if(idle)setTimeout(()=>requestAnimationFrame(draw),400);else requestAnimationFrame(draw);
   updateStatus(sunAlt);
 }
@@ -1832,29 +1832,146 @@ function wxQuality(w,moonIl,moonAlt){
   if(!w||w.out)return null;let q=100-w.cloud*0.9-(w.hum>85?15:w.hum>70?6:0)-(w.pp>40?20:0)-(moonAlt>0?moonIl*25:0)-(w.vis<5?20:0);q=clamp(q,0,100);
   return{q,txt:q>75?'Excelente':q>55?'Buena':q>35?'Regular':'Mala'};
 }
-// nubes: "copos" fijos en el cielo que se desplazan con el viento; la cantidad depende de la nubosidad
-const CLOUDS=(()=>{const r=rnd('nubes');const L=[];for(let i=0;i<260;i++)L.push({az:r()*360,alt:3+Math.pow(r(),0.8)*80,s:4+r()*9,k:r(),layer:r()});return L})();
-const SPR={};
-function cloudSprite(rgb){const key=rgb.map(x=>Math.round(x/8)).join();if(SPR[key])return SPR[key];const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');const r=rnd('sprite');
-  for(let i=0;i<14;i++){const x=64+(r()-0.5)*60,y=64+(r()-0.5)*28,rad=18+r()*26;const gr=g.createRadialGradient(x,y,0,x,y,rad);gr.addColorStop(0,`rgba(${rgb.join(',')},.55)`);gr.addColorStop(1,`rgba(${rgb.join(',')},0)`);g.fillStyle=gr;g.beginPath();g.arc(x,y,rad,0,7);g.fill()}return SPR[key]=c}
-function drawClouds(dayF,moonIl,moonAlt){
-  if(!S.layers.wx||!S.layers.clouds||S.ar)return null;const w=wxAt(S.jd);if(!w||w.out)return w;
-  const cover=w.cloud/100;if(cover<0.03)return w;
-  const drift=(S.jd*1440*(w.wind||5)*0.02)%360,dirAz=((w.wdir||0)+180)%360; // se mueven hacia donde sopla el viento
-  const light=dayF>0.5?[235,238,245]:dayF>0.1?[200,150,130]:moonAlt>0?mixc([60,64,80],[150,155,170],moonIl).split(',').map(Number):[40+S.layers.bortle*9,35+S.layers.bortle*6,45+S.layers.bortle*3];
-  const spr=cloudSprite(light.map(x=>Math.round(clamp(x,0,255))));
-  ctx.save();
-  const n=Math.round(CLOUDS.length*Math.min(1,cover*1.05));
-  for(let i=0;i<n;i++){const c=CLOUDS[i];
-    const az=c.az+drift*Math.sin((dirAz-c.az)*D2R*0.5+1);const v=altaz2v(c.alt,az);const p=project(v);if(!p||p.cz<0.05||!inScr(p))continue;
-    const k=S.ar?scale:scale*2/(1+p.cz);const sz=c.s*D2R*k*(0.7+cover*0.6);
-    ctx.globalAlpha=clamp(0.25+cover*0.75,0,0.95)*(0.6+c.k*0.4)*(dayF>0.5?0.9:0.85);
-    ctx.drawImage(spr,p.x-sz,p.y-sz*0.55,sz*2,sz*1.1);
+// ======================= Nubes realistas =======================
+// 1) Dónde hay nubes: imagen infrarroja del satélite GOES-Este (NASA GIBS, cada 10 minutos).
+// 2) Cuántas: nubosidad de Open-Meteo (umbral adaptativo sobre la imagen).
+// 3) Cómo se ven: campo de nubes a la altura real de las capas, con detalle de ruido, luz del Sol, la Luna o la ciudad.
+const CL={N:256,SPAN:120000,sat:null,satT:0,satLat:null,satLon:null,loading:false,err:false,thr:1,cv:document.createElement('canvas'),cv2:document.createElement('canvas'),key:'',last:0,
+  rain:[],flash:0,flashV:null,bolt:null,nextFlash:0};
+// ruido fractal repetible (para la textura de las nubes)
+const NOISE=(()=>{const n=256,out=new Float32Array(n*n),r=rnd('ruido-nubes');
+  for(const [cells,amp] of [[4,0.5],[8,0.25],[16,0.13],[32,0.07],[64,0.05]]){const g=[];for(let i=0;i<cells*cells;i++)g.push(r());
+    for(let y=0;y<n;y++)for(let x=0;x<n;x++){const fx=x/n*cells,fy=y/n*cells,x0=Math.floor(fx),y0=Math.floor(fy),tx=fx-x0,ty=fy-y0,sx=tx*tx*(3-2*tx),sy=ty*ty*(3-2*ty);
+      const G=(i,j)=>g[((j%cells+cells)%cells)*cells+((i%cells+cells)%cells)];
+      out[y*n+x]+=amp*((G(x0,y0)*(1-sx)+G(x0+1,y0)*sx)*(1-sy)+(G(x0,y0+1)*(1-sx)+G(x0+1,y0+1)*sx)*sy)}}
+  let mn=9,mx=-9;for(const v of out){mn=Math.min(mn,v);mx=Math.max(mx,v)}for(let i=0;i<out.length;i++)out[i]=(out[i]-mn)/(mx-mn);return out})();
+function noiseAt(x,y){const n=256;x=((x%n)+n)%n;y=((y%n)+n)%n;const x0=x|0,y0=y|0,x1=(x0+1)%n,y1=(y0+1)%n,tx=x-x0,ty=y-y0;
+  return (NOISE[y0*n+x0]*(1-tx)+NOISE[y0*n+x1]*tx)*(1-ty)+(NOISE[y1*n+x0]*(1-tx)+NOISE[y1*n+x1]*tx)*ty}
+async function loadSatClouds(){
+  if(CL.loading||CL.err==='perm')return;const near=CL.satLat!=null&&Math.hypot((S.lat-CL.satLat)*111,(S.lon-CL.satLon)*111)<15;
+  if(near&&Date.now()-CL.satT<15*60000)return;CL.loading=true;
+  const z=7,p=merc(S.lat,S.lon,z),tx0=Math.floor(p.x/256-0.5),ty0=Math.floor(p.y/256-0.5);
+  const cv=document.createElement('canvas');cv.width=cv.height=512;const g=cv.getContext('2d',{willReadFrequently:true});
+  let ok=false;
+  for(const lag of [30,50,80,120]){ // la imagen tarda un rato en publicarse
+    const t=new Date(Date.now()-lag*60000);t.setUTCMinutes(Math.floor(t.getUTCMinutes()/10)*10,0,0);const ts=t.toISOString().replace('.000','');
+    const loads=[];for(let j=0;j<2;j++)for(let i=0;i<2;i++)loads.push(new Promise(res=>{const im=new Image();im.crossOrigin='anonymous';
+      im.onload=()=>{g.drawImage(im,i*256,j*256);res(true)};im.onerror=()=>res(false);
+      im.src=`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GOES-East_ABI_Band13_Clean_Infrared/default/${ts}/GoogleMapsCompatible_Level7/${z}/${ty0+j}/${tx0+i}.png`}));
+    const r=await Promise.all(loads);if(r.every(Boolean)){ok=true;CL.satTime=t;break}
   }
-  ctx.restore();
-  if(cover>0.9){ctx.save();ctx.fillStyle=`rgba(${light.join(',')},${(cover-0.9)*4})`;ctx.globalAlpha=0.55;ctx.fillRect(0,0,W,H);ctx.restore()}
+  if(ok){try{
+    const d=g.getImageData(0,0,512,512).data,N=CL.N,grid=new Float32Array(N*N);
+    for(let j=0;j<N;j++)for(let i=0;i<N;i++){const e=(i/(N-1)-0.5)*CL.SPAN,n=(0.5-j/(N-1))*CL.SPAN;
+      const q=merc(S.lat+n/111320,S.lon+e/(111320*Math.cos(S.lat*D2R)),z);const x=clamp(q.x-tx0*256,0,511),y=clamp(q.y-ty0*256,0,511);
+      const k=((y|0)*512+(x|0))*4;grid[j*N+i]=(d[k]*0.3+d[k+1]*0.59+d[k+2]*0.11)/255}
+    CL.sat=grid;CL.satT=Date.now();CL.satLat=S.lat;CL.satLon=S.lon;CL.err=false;
+  }catch(e){CL.err='perm'}}else CL.err=true;
+  CL.loading=false;CL.key='';
+}
+function cloudThreshold(cover){ // elige el umbral para que la fracción nublada cerca tuyo coincida con Open-Meteo
+  if(!CL.sat)return 1;const N=CL.N,vals=[];for(let j=0;j<N;j+=2)for(let i=0;i<N;i+=2){const di=i-N/2,dj=j-N/2;if(di*di+dj*dj<(N*0.22)**2)vals.push(CL.sat[j*N+i])}
+  vals.sort((a,b)=>a-b);if(cover<=1)return 1.2;if(cover>=99)return vals[0]-0.05;return vals[Math.floor(vals.length*(1-cover/100))]}
+function cloudDensity(e,n,w,thr,dist){ // 0..1 en un punto del techo de nubes (metros al este y al norte)
+  let base=null;
+  if(CL.sat&&Math.abs(S.jd-jdNow())<0.1){const N=CL.N;const fi=(e/CL.SPAN+0.5)*(N-1),fj=(0.5-n/CL.SPAN)*(N-1);
+    if(fi>=0&&fj>=0&&fi<=N-1&&fj<=N-1){const i0=fi|0,j0=fj|0,i1=Math.min(N-1,i0+1),j1=Math.min(N-1,j0+1),tx=fi-i0,ty=fj-j0;
+      const v=(CL.sat[j0*N+i0]*(1-tx)+CL.sat[j0*N+i1]*tx)*(1-ty)+(CL.sat[j1*N+i0]*(1-tx)+CL.sat[j1*N+i1]*tx)*ty;base=clamp((v-thr)/0.08+0.5,0,1)}}
+  const c=w.cloud/100;
+  // forma de las nubes: ruido grande (masas de ~10 km), medio (cúmulos de ~2 km) y fino (bordes), que se suaviza a lo lejos
+  const big=noiseAt(e/45,n/45),mid=noiseAt(e/11+31,n/11+77),fine=noiseAt(e/4.5+113,n/4.5+19);
+  const det=clamp(1-(dist||0)/12000,0,1);
+  if(base==null)base=clamp((big-(1-c))*2.6+0.5,0,1);
+  const shape=base*0.55+(0.5+(mid-0.5)*clamp(1.2-(dist||0)/40000,0.3,1))*0.45+(fine-0.5)*0.22*det;
+  const cut=1-Math.min(0.92,c*0.85+0.08); // con más nubosidad, más superficie cubierta
+  return clamp((shape-cut)*2.4*base+(c>0.95?0.35:0),0,1);
+}
+function cloudCeiling(w){const s=(w.low||0)+(w.mid||0)+(w.high||0);return s<5?2500:((w.low||0)*1400+(w.mid||0)*4000+(w.high||0)*8500)/s}
+function drawClouds(dayF,moonIl,moonAlt,sunE,moonE){
+  if(!S.layers.wx||!S.layers.clouds||S.ar)return null;const w=wxAt(S.jd);if(!w||w.out)return w;
+  if(Math.abs(S.jd-jdNow())<0.1)loadSatClouds();
+  const cover=w.cloud;const code=w.code||0;
+  const now=performance.now();
+  const key=[...camF,...camU].map(x=>x.toFixed(3)).join()+S.fov.toFixed(1)+W+'x'+H+Math.round(cover)+(CL.sat?CL.satT:0)+Math.round(dayF*30)+S.layers.bortle;
+  if(cover>=2&&(key!==CL.key||now-CL.last>(ROT.on||S.play?150:2000))){CL.key=key;CL.last=now;renderClouds(w,dayF,moonIl,moonAlt,sunE,moonE)}
+  if(cover>=2){ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(CL.cv2,0,0,W,H)}
+  drawWeatherFx(w,code,dayF);
   return w;
 }
+function renderClouds(w,dayF,moonIl,moonAlt,sunE,moonE){
+  const cw=Math.min(330,Math.round(W/1.6)),chh=Math.round(cw*H/W);const C=CL.cv;if(C.width!==cw||C.height!==chh){C.width=cw;C.height=chh}
+  const g=C.getContext('2d');const img=g.createImageData(cw,chh);const D=img.data;
+  const Hc=cloudCeiling(w),thr=cloudThreshold(w.cloud);
+  // deriva con el viento en altura (más rápido que en superficie)
+  const tSec=(S.jd-(CL.satTime?CL.satTime.getTime()/86400000+2440587.5:jdNow()))*86400;const spd=(w.wind||8)/3.6*2.2,from=(w.wdir||270)*D2R;
+  const de=-spd*Math.sin(from)*tSec,dn=-spd*Math.cos(from)*tSec;
+  // luz
+  const sunAlt=v2altaz(sunE).alt,twi=clamp(1-Math.abs(sunAlt+2)/8,0,1);
+  const storm=(w.code||0)>=95||(w.code>=80&&w.cloud>85);const city=[45+S.layers.bortle*13,42+S.layers.bortle*10,48+S.layers.bortle*7];
+  const sh=v2altaz(sunE).az*D2R;const lx=dayF>0.15?Math.sin(sh):0.3,ly=dayF>0.15?Math.cos(sh):0.3;
+  const moonL=moonAlt>0?moonIl:0;
+  const sc=S.ar?Math.min(W,H)/2/Math.tan(S.fov*D2R/2):scale;
+  for(let y=0;y<chh;y++)for(let x=0;x<cw;x++){
+    const X=((x+0.5)/cw*W-W/2)/sc,Y=(H/2-(y+0.5)/chh*H)/sc;let v;
+    if(S.ar)v=vnorm([X*camR[0]+Y*camU[0]+camF[0],X*camR[1]+Y*camU[1]+camF[1],X*camR[2]+Y*camU[2]+camF[2]]);
+    else{const r2=X*X+Y*Y,cz=(4-r2)/(4+r2),k=(1+cz)/2;v=[X*k*camR[0]+Y*k*camU[0]+cz*camF[0],X*k*camR[1]+Y*k*camU[1]+cz*camF[1],X*k*camR[2]+Y*k*camU[2]+cz*camF[2]]}
+    if(v[2]<0.012)continue;
+    const e=Hc*v[0]/v[2]+de,n=Hc*v[1]/v[2]+dn,dist=Hc*Math.hypot(v[0],v[1])/v[2];
+    let dens=cloudDensity(e,n,w,thr,dist);if(dens<0.04)continue;
+    // volumen: comparo con la densidad un poco más hacia la luz (Sol de día; de noche, hacia arriba) para sombrear
+    const d2=cloudDensity(e+lx*350,n+ly*350,w,thr,dist);const shade=clamp(1-(d2-dens)*0.9-dens*0.22,0.55,1.1)*(storm?0.55:1);
+    const far=clamp(1-(dist-45000)/40000,0.35,1); // a lo lejos se funden con la bruma
+    const thick=dens;
+    let r,gg,b;
+    if(dayF>0.15){ // de día: blancas con base gris, bordes plateados hacia el Sol
+      const sd=clamp(dot(v,sunE),-1,1),lin=Math.pow(clamp(sd,0,1),8)*0.35;
+      const base=(1-thick*0.35)*shade;r=255*(base+lin);gg=255*(base+lin);b=262*(base+lin*0.9);
+      if(twi>0){r=r*(1-twi)+ (255*(0.95-thick*0.3))*twi;gg=gg*(1-twi)+(165*(1-thick*0.4))*twi;b=b*(1-twi)+(140*(1-thick*0.5))*twi}
+      r*=0.55+0.45*dayF;gg*=0.55+0.45*dayF;b*=0.6+0.4*dayF;
+    }else{ // de noche: iluminadas por la ciudad desde abajo y por la Luna
+      const md=moonE?clamp(dot(v,moonE),0,1):0;const ml=moonL*(0.35+0.65*Math.pow(md,3))*(1-thick*0.5);
+      const cityF=(0.5+0.5*thick)*(0.55+0.45*(1-v[2]))*(0.8+0.25*shade); // más resplandor cerca del horizonte
+      r=city[0]*cityF+170*ml*shade;gg=city[1]*cityF+175*ml*shade;b=city[2]*cityF+190*ml*shade;
+    }
+    const k=(y*cw+x)*4;D[k]=clamp(r,0,255);D[k+1]=clamp(gg,0,255);D[k+2]=clamp(b,0,255);
+    D[k+3]=255*clamp((dens-0.04)*2.6,0,1)*(dayF>0.15?0.97:0.95)*far;
+  }
+  g.putImageData(img,0,0);
+  // suavizado final (las nubes no tienen bordes duros)
+  const B=CL.cv2;if(B.width!==cw||B.height!==chh){B.width=cw;B.height=chh}const bg=B.getContext('2d');bg.clearRect(0,0,cw,chh);bg.filter='blur(0.9px)';bg.drawImage(C,0,0);bg.filter='none';
+}
+// lluvia, niebla y relámpagos
+function drawWeatherFx(w,code,dayF){
+  const rain=[51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99].includes(code)||(w.pp>70&&w.cloud>85);
+  const storm=code>=95;const fog=code===45||code===48||w.vis<1.5;
+  const t=performance.now();
+  if(fog){const g=ctx.createLinearGradient(0,0,0,H);const c=dayF>0.3?'225,228,232':'70,72,80';g.addColorStop(0,`rgba(${c},.35)`);g.addColorStop(1,`rgba(${c},.75)`);ctx.fillStyle=g;ctx.fillRect(0,0,W,H)}
+  if(rain){
+    const inten=[65,67,82,99].includes(code)?1:[63,81,96,95].includes(code)?0.65:0.35;const n=Math.round(60+inten*260);
+    while(CL.rain.length<n)CL.rain.push({x:Math.random()*W,y:Math.random()*H,l:8+Math.random()*14,s:0.6+Math.random()*0.6});CL.rain.length=n;
+    const slant=Math.sin(((w.wdir||0)-v2altaz(camF).az)*D2R)*0.25*Math.min(1,(w.wind||0)/30);
+    ctx.save();ctx.strokeStyle=dayF>0.3?'rgba(200,210,225,.45)':'rgba(160,170,200,.35)';ctx.lineWidth=1;ctx.beginPath();
+    for(const d of CL.rain){d.y+=d.s*18;d.x+=slant*d.s*18;if(d.y>H){d.y=-20;d.x=Math.random()*W}if(d.x<0)d.x+=W;if(d.x>W)d.x-=W;ctx.moveTo(d.x,d.y);ctx.lineTo(d.x+slant*d.l,d.y+d.l)}
+    ctx.stroke();ctx.restore();
+  }
+  if(storm){
+    if(t>CL.nextFlash){CL.nextFlash=t+2500+Math.random()*7000;CL.flash=t;
+      // el relámpago sale de una zona de nubes densas del cielo
+      let best=null;for(let k=0;k<40;k++){const az=Math.random()*360,alt=5+Math.random()*50;const v=altaz2v(alt,az);const Hc=cloudCeiling(w);
+        const dd=cloudDensity(Hc*v[0]/v[2],Hc*v[1]/v[2],w,cloudThreshold(w.cloud),0);if(!best||dd>best.d)best={d:dd,v,alt,az}}
+      CL.flashV=best?best.v:altaz2v(20,Math.random()*360);CL.bolt=Math.random()<0.55?makeBolt():null}
+    const age=t-CL.flash;if(age<450){const a=(age<80?1:age<160?0.3:age<240?0.85:Math.max(0,1-(age-240)/210));
+      const p=project(CL.flashV);
+      ctx.save();ctx.globalCompositeOperation='lighter';
+      if(p&&inScr(p)){const R=Math.min(W,H)*0.45;const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,R);g.addColorStop(0,`rgba(225,215,255,${0.75*a})`);g.addColorStop(1,'rgba(200,190,255,0)');ctx.fillStyle=g;ctx.fillRect(p.x-R,p.y-R,2*R,2*R)
+        if(CL.bolt&&age<300){const ph=project(altaz2v(0,v2altaz(CL.flashV).az));if(ph){ctx.strokeStyle=`rgba(245,240,255,${a})`;ctx.lineWidth=2.2;ctx.shadowColor='#c9c0ff';ctx.shadowBlur=14;ctx.beginPath();
+          CL.bolt.forEach((q,i)=>{const x=p.x+(ph.x-p.x)*q[1]+q[0]*Math.min(W,H)*0.08,y=p.y+(ph.y-p.y)*q[1];i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke()}}}
+      ctx.fillStyle=`rgba(190,190,230,${0.12*a})`;ctx.fillRect(0,0,W,H);ctx.restore()}
+  }
+}
+function makeBolt(){const pts=[[0,0]];let x=0;for(let i=1;i<=14;i++){x+=(Math.random()-0.5)*0.35;pts.push([x,i/14])}return pts}
+const weatherAnimating=()=>{if(!S.layers.wx||!S.layers.clouds)return false;const w=wxAt(S.jd);if(!w||w.out)return false;const c=w.code||0;return c>=51||c===45||c===48};
+
 function wxChip(){
   const el=$('wxChip');if(!S.layers.wx||S.site){el.style.display='none';return}
   const w=wxAt(S.jd);el.style.display='inline-block';
@@ -1882,7 +1999,7 @@ function openWeather(){
   for(let i=0;i<H.jd.length&&cnt<14;i++){if(H.jd[i]<now-0.02)continue;const sa=sunAltAt(H.jd[i],S.lat,S.lon);if(sa>-6)continue;cnt++;const cc=H.cloud_cover[i];
     rows+=`<div style="display:flex;align-items:center;gap:6px;font-size:13px;margin:2px 0"><span style="width:52px">${hhmm(H.jd[i])}</span><div style="flex:1;height:10px;background:#0a1030;border-radius:5px;overflow:hidden"><div style="width:${cc}%;height:100%;background:${cc>70?'#9aa3b8':cc>30?'#6f7a96':'#4c5a80'}"></div></div><span style="width:40px;text-align:right">${cc}%</span></div>`}
   h+=`<h3>🌙 Nubosidad en las próximas horas de noche</h3>${rows||'<p>No hay horas de noche en el pronóstico cargado.</p>'}`;
-  h+=`<p style="font-size:12px;color:var(--dim)">Datos: Open-Meteo (modelos meteorológicos nacionales), actualizado ${new Date(WX.t).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}. Las nubes del cielo son una simulación según el porcentaje de nubosidad, no su forma real.</p>`;
+  h+=`<p style="font-size:12px;color:var(--dim)">Datos: Open-Meteo (modelos meteorológicos nacionales), actualizado ${new Date(WX.t).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}. Las nubes del cielo se ubican según la imagen infrarroja del satélite GOES-Este (NASA GIBS) y la cantidad según Open-Meteo; su textura es una recreación.</p>`;
   B.innerHTML=h;
 }
 
