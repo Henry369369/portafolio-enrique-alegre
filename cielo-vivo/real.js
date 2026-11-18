@@ -90,10 +90,17 @@ async function rlLoadTerrain(lat,lon){
     return el[i]*(1-fx)*(1-fy)+el[i+1]*fx*(1-fy)+el[i+Wd]*(1-fx)*fy+el[i+Wd+1]*fx*fy};
   let h0=samp(ox,oy);if(!isFinite(h0))h0=0;
   const eye=2,Re=6371000,kref=0.13,prof=new Float32Array(720);
+  const topD=new Float32Array(720),topH=new Float32Array(720);
   for(let k=0;k<720;k++){const az=k*0.5*D2R,sx=Math.sin(az)/mpp,sy=-Math.cos(az)/mpp;let best=-90;
     for(let d=250;d<=TERR.R;d*=1.012){const hs=samp(ox+sx*d,oy+sy*d);if(!isFinite(hs))continue;
-      const a=(Math.atan((hs-h0-eye)/d)-d*(1-kref)/(2*Re))*R2D;if(a>best)best=a}
+      const a=(Math.atan((hs-h0-eye)/d)-d*(1-kref)/(2*Re))*R2D;if(a>best){best=a;topD[k]=d;topH[k]=hs}}
     prof[k]=best}
+  // cumbres: máximos locales del perfil que sobresalen
+  const pk=[];for(let k=0;k<720;k++){const v=prof[k];if(v<0.6)continue;let isMax=true,lo=v;
+    for(let j=-14;j<=14;j++){const w=prof[(k+j+720)%720];if(j&&w>v){isMax=false;break}}
+    if(!isMax)continue;for(let j=-40;j<=40;j++)lo=Math.min(lo,prof[(k+j+720)%720]);if(v-lo<0.35)continue;
+    pk.push({az:k*0.5,alt:v,d:topD[k],h:topH[k]})}
+  pk.sort((a,b)=>b.alt-a.alt);TERR.peaks=[];for(const q of pk){if(TERR.peaks.every(o=>Math.abs(((q.az-o.az+540)%360)-180)>9))TERR.peaks.push(q);if(TERR.peaks.length>=10)break}
   const sm=new Float32Array(720);for(let k=0;k<720;k++)sm[k]=(prof[(k+719)%720]+2*prof[k]+prof[(k+1)%720])/4;TERR.prof=sm;
   // panorámica: por cada columna de acimut se recorre el terreno hacia afuera y se pinta cada ladera que asoma
   const maxA=Math.max(...sm),A0=-0.8,DA=clamp((maxA+0.5-A0)/320,0.03,0.12),NR=Math.max(8,Math.ceil((maxA+0.5-A0)/DA)),NC=1440;
@@ -125,7 +132,7 @@ function rlPaintPan(dayF,sunE,moE){ // colores de la panorámica según la luz d
     const rock=clamp(G[i]/120-0.3+nse*0.3,0,1);
     let base=rlMix(nse>0.55?[38,62,30]:nse>0.2?[58,80,38]:[84,92,54],[126,114,96],rock*0.7);
     let L;const lsun=sun?Math.max(0,nx*sun[0]+ny*sun[1]+nz*sun[2]):0;
-    L=dayF*(0.28+0.95*lsun)+(1-dayF)*(0.06+0.35*mg*(moon?Math.max(0,nx*moon[0]+ny*moon[1]+nz*moon[2]):0));
+    const tw=Math.exp(-Math.pow((dayF-0.35)/0.3,2));L=dayF*(0.3+0.95*lsun)+tw*0.22+(1-dayF)*(0.07+0.35*mg*(moon?Math.max(0,nx*moon[0]+ny*moon[1]+nz*moon[2]):0));
     let col=[base[0]*L,base[1]*L,base[2]*L];
     const f=(1-Math.exp(-d/Hd))*(dayF>0.3?0.8:0.6);col=rlMix(col,rlMix(sky,[185,200,220],dayF*0.45),f);
     px[o]=col[0];px[o+1]=col[1];px[o+2]=col[2];px[o+3]=255}}
@@ -148,6 +155,13 @@ function RLterrain(dayF,sunE){
       drawTri(T.cv,TL,TR,BR,u0,0,u1,0,u1,T.NR);drawTri(T.cv,TL,BR,BL,u0,0,u1,T.NR,u0,T.NR);
     }
   }
+  // carteles de las cumbres: altura sobre el nivel del mar y distancia
+  if(TERR.peaks&&S.fov<130){ctx.save();ctx.font='600 11px system-ui';ctx.textAlign='center';
+    for(const q of TERR.peaks){const p=project(altaz2v(q.alt*rlEx(),q.az));if(!p||p.cz<0.1||!inScr(p))continue;
+      ctx.fillStyle='rgba(255,255,255,.85)';ctx.beginPath();ctx.moveTo(p.x,p.y-3);ctx.lineTo(p.x-4,p.y-10);ctx.lineTo(p.x+4,p.y-10);ctx.closePath();ctx.fill();
+      const t=`${Math.round(q.h).toLocaleString('es-AR')} m · ${q.d<10000?(q.d/1000).toFixed(1).replace('.',','):Math.round(q.d/1000)} km`;
+      ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.55)';ctx.strokeText(t,p.x,p.y-14);ctx.fillText(t,p.x,p.y-14)}
+    ctx.restore()}
   // cresta: línea suave del borde de las sierras
   ctx.save();ctx.beginPath();let prev=null;
   for(let k=0;k<=720;k++){const h=Math.max(0,TERR.prof[k%720])*rlEx();const p=project(altaz2v(h,k*0.5));if(p&&prev&&p.cz>-0.3&&prev.cz>-0.3&&(inScr(p)||inScr(prev))){ctx.moveTo(prev.x,prev.y);ctx.lineTo(p.x,p.y)}prev=p}
