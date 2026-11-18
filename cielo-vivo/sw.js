@@ -1,7 +1,7 @@
 // Service worker de Cielo Vivo
 // - App: primero la red (para recibir actualizaciones) y, sin conexión, lo guardado.
 // - Mapas y fotos: se guardan al verlos, para poder usarlos después sin internet.
-const CACHE='cielo-vivo-v17',TILES='cielo-mapas-v1',MAXTILES=1500;
+const CACHE='cielo-vivo-v17-1',TILES='cielo-mapas-v1',MAXTILES=1500;
 const FILES=['./','./index.html','./data.js','./real.js','./satellite.min.js','./manifest.json','./icon-192.png','./icon-512.png','./leaflet/leaflet.js','./leaflet/leaflet.css'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE&&k!==TILES).map(k=>caches.delete(k)))));self.clients.claim()});
