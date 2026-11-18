@@ -65,6 +65,7 @@ function RLstar(e,s,planet){
 const TERR={z:10,prof:null,raw:null,lat:null,lon:null,h0:null,loading:false,err:null,tries:0,R:50000,src:''};
 function RLterrainEnsure(){
   if(!S.layers.relief||TERR.loading)return;
+  if(TERR.dem&&TERR.eye!==rlEye()&&Math.hypot((S.lat-TERR.lat)*111,(S.lon-TERR.lon)*111*Math.cos(S.lat*D2R))<1.5){rlBuildTerrain();return}
   const lat=S.lat,lon=S.lon;
   if(TERR.lat!=null&&Math.hypot((lat-TERR.lat)*111,(lon-TERR.lon)*111*Math.cos(lat*D2R))<1.5)return;
   if(TERR.err&&performance.now()-TERR.err<60000&&TERR.errLat===lat.toFixed(2)+','+lon.toFixed(2))return;
@@ -88,8 +89,14 @@ async function rlLoadTerrain(lat,lon){
   const ox=c.x-tx0*256,oy=c.y-ty0*256;
   const samp=(x,y)=>{if(x<0||y<0||x>=Wd-1||y>=Hd-1)return NaN;const x0=x|0,y0=y|0,fx=x-x0,fy=y-y0,i=y0*Wd+x0;
     return el[i]*(1-fx)*(1-fy)+el[i+1]*fx*(1-fy)+el[i+Wd]*(1-fx)*fy+el[i+Wd+1]*fx*fy};
+  TERR.dem={samp,ox,oy,mpp,c,z};TERR.lat=lat;TERR.lon=lon;TERR.loading=false;TERR.err=null;
+  rlBuildTerrain();rlLoadTerrainSat(lat,lon);
+}
+function rlEye(){return(typeof GHEIGHTS!=='undefined'&&GHEIGHTS[S.layers.gh])||2}
+function rlBuildTerrain(){ // perfil del horizonte, cumbres y panorámica para la altura de vista actual
+  const {samp,ox,oy,mpp}=TERR.dem;
   let h0=samp(ox,oy);if(!isFinite(h0))h0=0;
-  const eye=2,Re=6371000,kref=0.13,prof=new Float32Array(720);
+  const eye=rlEye(),Re=6371000,kref=0.13,prof=new Float32Array(720);TERR.eye=eye;
   const topD=new Float32Array(720),topH=new Float32Array(720);
   for(let k=0;k<720;k++){const az=k*0.5*D2R,sx=Math.sin(az)/mpp,sy=-Math.cos(az)/mpp;let best=-90;
     for(let d=250;d<=TERR.R;d*=1.012){const hs=samp(ox+sx*d,oy+sy*d);if(!isFinite(hs))continue;
@@ -102,40 +109,71 @@ async function rlLoadTerrain(lat,lon){
     pk.push({az:k*0.5,alt:v,d:topD[k],h:topH[k]})}
   pk.sort((a,b)=>b.alt-a.alt);TERR.peaks=[];for(const q of pk){if(TERR.peaks.every(o=>Math.abs(((q.az-o.az+540)%360)-180)>9))TERR.peaks.push(q);if(TERR.peaks.length>=10)break}
   const sm=new Float32Array(720);for(let k=0;k<720;k++)sm[k]=(prof[(k+719)%720]+2*prof[k]+prof[(k+1)%720])/4;TERR.prof=sm;
-  // panorámica: por cada columna de acimut se recorre el terreno hacia afuera y se pinta cada ladera que asoma
-  const maxA=Math.max(...sm),A0=-0.8,DA=clamp((maxA+0.5-A0)/320,0.03,0.12),NR=Math.max(8,Math.ceil((maxA+0.5-A0)/DA)),NC=1440;
+  // panorámica: por cada columna de acimut se recorre el terreno hacia afuera y se pinta cada ladera que asoma.
+  // Empieza 3° bajo el horizonte para reemplazar la foto del suelo estirada por el relieve verdadero.
+  const maxA=Math.max(...sm),A0=-3,DA=clamp((maxA+0.5-A0)/340,0.03,0.12),NR=Math.max(8,Math.ceil((maxA+0.5-A0)/DA)),NC=1440;
   const D=new Float32Array(NC*NR),N=new Int8Array(NC*NR*3),G=new Uint8Array(NC*NR);
   for(let c=0;c<NC;c++){const az=c*0.25*D2R,sx=Math.sin(az)/mpp,sy=-Math.cos(az)/mpp;let last=-1;
-    for(let d=90;d<=TERR.R&&last<NR-1;d*=1.008){const x=ox+sx*d,y=oy+sy*d,hs=samp(x,y);if(!isFinite(hs))continue;
+    for(let d=60;d<=TERR.R&&last<NR-1;d*=1.008){const x=ox+sx*d,y=oy+sy*d,hs=samp(x,y);if(!isFinite(hs))continue;
       const a=(Math.atan((hs-h0-eye)/d)-d*(1-kref)/(2*Re))*R2D;const row=Math.min(NR-1,Math.floor((a-A0)/DA));
       if(row>last){const gx=(samp(x+1,y)-samp(x-1,y))/(2*mpp),gy=(samp(x,y+1)-samp(x,y-1))/(2*mpp);
         let nx=-gx,ny=gy,nz=1;const l=Math.hypot(nx,ny,nz)||1;nx/=l;ny/=l;nz/=l;
-        const gnd=(hs-h0)>0?Math.min(255,(hs-h0)/8):0; // altura relativa (para pintar roca arriba)
+        const gnd=(hs-h0)>0?Math.min(255,(hs-h0)/8):0;
         for(let r=Math.max(0,last+1);r<=row;r++){const i=r*NC+c;D[i]=d;N[i*3]=nx*127;N[i*3+1]=ny*127;N[i*3+2]=nz*127;G[i]=gnd}
         last=row}}}
   TERR.pan={D,N,G,NC,NR,A0,DA,top:A0+NR*DA,cv:document.createElement('canvas'),key:'',gen:(TERR.pan?TERR.pan.gen+1:1)};
-  TERR.pan.cv.width=NC;TERR.pan.cv.height=NR;
-  TERR.h0=h0;TERR.lat=lat;TERR.lon=lon;TERR.loading=false;TERR.err=null;
+  TERR.pan.cv.width=NC;TERR.pan.cv.height=NR;TERR.h0=h0;
   if(typeof GCACHE!=='undefined')GCACHE.key='';
+}
+// foto satelital para "vestir" las sierras con sus colores reales (z11 hasta 50 km; z13 de la app cerca)
+async function rlLoadTerrainSat(lat,lon){
+  if(typeof TILE==='undefined')return;const z=11,n=2**z,c=merc(lat,lon,z),k=3;
+  const tx0=Math.floor(c.x/256)-k,ty0=Math.floor(c.y/256)-k,N=2*k+1;
+  const cv=document.createElement('canvas');cv.width=cv.height=N*256;const g=cv.getContext('2d',{willReadFrequently:true});
+  const url=TILE.sat(z);let ok=0;const jobs=[];
+  for(let j=0;j<N;j++)for(let i=0;i<N;i++)jobs.push(new Promise(res=>{const im=new Image();im.crossOrigin='anonymous';
+    im.onload=()=>{g.drawImage(im,i*256,j*256);ok++;res()};im.onerror=()=>res();setTimeout(res,25000);im.src=url(tx0+i,ty0+j)}));
+  await Promise.all(jobs);if(ok<N*N*0.5||TERR.lat!==lat)return;
+  try{TERR.sat={px:g.getImageData(0,0,cv.width,cv.height).data,w:cv.width,h:cv.height,ox:tx0*256,oy:ty0*256,f:2**(z-TERR.z)};if(TERR.pan)TERR.pan.key=''}catch(e){}
+}
+function rlNearSat(){ // mosaico z13 que ya usa el suelo de la app (si se puede leer)
+  const G=typeof GTS!=='undefined'?GTS[0]:null;if(!G||!G.ready||G.src!=='sat'||G.loaded<G.total)return null;
+  if(TERR.near&&TERR.near.gen===G.gen)return TERR.near.px?TERR.near:null;
+  try{TERR.near={gen:G.gen,px:G.ctx.getImageData(0,0,G.canvas.width,G.canvas.height).data,w:G.canvas.width,h:G.canvas.height,ox:G.tx0*256,oy:G.ty0*256,f:2**(G.z-TERR.z)}}catch(e){TERR.near={gen:G.gen,px:null}}
+  if(TERR.pan)TERR.pan.key='';return TERR.near.px?TERR.near:null;
 }
 function RLhzRaw(az){const P=TERR.prof;if(!P||!S.layers.relief)return 0;const f=norm360(az)*2,i=f|0,t=f-i;return P[i%720]*(1-t)+P[(i+1)%720]*t}
 function rlEx(){return S.layers.reliefX||1}
 function RLhz(az){return Math.max(0,RLhzRaw(az))*rlEx()}
 function rlPaintPan(dayF,sunE,moE){ // colores de la panorámica según la luz del momento
-  const T=TERR.pan,{D,N,G,NC,NR}=T;const img=T.cv.getContext('2d').createImageData(NC,NR),px=img.data;
+  const T=TERR.pan,{D,N,G,NC,NR,A0,DA}=T;const img=T.cv.getContext('2d').createImageData(NC,NR),px=img.data;
   const sky=RL.skyBot||rlMix([14,20,48],[120,170,220],dayF);
   const sun=sunE&&sunE[2]>-0.1?sunE:null,moon=moE&&moE[2]>0?moE:null,mg=RL.moonGlow;
-  const Hd=dayF>0.3?38000:45000;
-  for(let r=0;r<NR;r++){const y=NR-1-r;for(let c=0;c<NC;c++){const i=r*NC+c,o=(y*NC+c)*4;const d=D[i];if(!d){px[o+3]=0;continue}
+  const Hd=dayF>0.3?38000:45000,hz=rlMix(sky,[185,200,220],dayF*0.45);
+  const tw=Math.exp(-Math.pow((dayF-0.35)/0.3,2));
+  const dm=TERR.dem,sat=TERR.sat,near=rlNearSat();
+  const SX=new Float32Array(NC),SY=new Float32Array(NC);for(let c=0;c<NC;c++){SX[c]=Math.sin(c*0.25*D2R)/dm.mpp;SY[c]=-Math.cos(c*0.25*D2R)/dm.mpp}
+  const wx0=dm.c.x,wy0=dm.c.y;
+  const look=(S2,x10,y10,o)=>{const x=(x10*S2.f-S2.ox)|0,y=(y10*S2.f-S2.oy)|0;if(x<0||y<0||x>=S2.w||y>=S2.h)return false;const j=(y*S2.w+x)*4;o[0]=S2.px[j];o[1]=S2.px[j+1];o[2]=S2.px[j+2];return true};
+  const tmp=[0,0,0];
+  for(let r=0;r<NR;r++){const y=NR-1-r,alt=A0+r*DA,fade=clamp((alt-A0)/0.9,0,1);
+    for(let c=0;c<NC;c++){const i=r*NC+c,o=(y*NC+c)*4;const d=D[i];if(!d){px[o+3]=0;continue}
     const nx=N[i*3]/127,ny=N[i*3+1]/127,nz=N[i*3+2]/127;
-    const h=((c*73856093)^(r*19349663))>>>0,nse=(h%1000)/1000; // textura: monte, pasto y roca
-    const rock=clamp(G[i]/120-0.3+nse*0.3,0,1);
-    let base=rlMix(nse>0.55?[38,62,30]:nse>0.2?[58,80,38]:[84,92,54],[126,114,96],rock*0.7);
-    let L;const lsun=sun?Math.max(0,nx*sun[0]+ny*sun[1]+nz*sun[2]):0;
-    const tw=Math.exp(-Math.pow((dayF-0.35)/0.3,2));L=dayF*(0.3+0.95*lsun)+tw*0.22+(1-dayF)*(0.07+0.35*mg*(moon?Math.max(0,nx*moon[0]+ny*moon[1]+nz*moon[2]):0));
-    let col=[base[0]*L,base[1]*L,base[2]*L];
-    const f=(1-Math.exp(-d/Hd))*(dayF>0.3?0.8:0.6);col=rlMix(col,rlMix(sky,[185,200,220],dayF*0.45),f);
-    px[o]=col[0];px[o+1]=col[1];px[o+2]=col[2];px[o+3]=255}}
+    const lsun=sun?Math.max(0,nx*sun[0]+ny*sun[1]+nz*sun[2]):0,lmoon=moon?Math.max(0,nx*moon[0]+ny*moon[1]+nz*moon[2]):0;
+    const x10=wx0+SX[c]*d,y10=wy0+SY[c]*d;let col,real=false;
+    if(near&&d<11000&&look(near,x10,y10,tmp)){col=[tmp[0],tmp[1],tmp[2]];real=true}
+    else if(sat&&look(sat,x10,y10,tmp)){col=[tmp[0],tmp[1],tmp[2]];real=true}
+    let L;
+    if(real){ // la foto ya trae sus colores: se le suma el relieve con la luz del momento
+      L=dayF*(0.62+0.6*(lsun-0.45))+tw*0.18+(1-dayF)*(0.05+0.3*mg*lmoon);
+    }else{
+      const h=((c*73856093)^(r*19349663))>>>0,nse=(h%1000)/1000,rock=clamp(G[i]/120-0.3+nse*0.3,0,1);
+      col=rlMix(nse>0.55?[38,62,30]:nse>0.2?[58,80,38]:[84,92,54],[126,114,96],rock*0.7);
+      L=dayF*(0.3+0.95*lsun)+tw*0.22+(1-dayF)*(0.07+0.35*mg*lmoon);
+    }
+    col=[col[0]*L,col[1]*L,col[2]*L];
+    const f=(1-Math.exp(-d/Hd))*(dayF>0.3?0.8:0.6);col=rlMix(col,hz,f);
+    px[o]=col[0];px[o+1]=col[1];px[o+2]=col[2];px[o+3]=255*fade}}
   T.cv.getContext('2d').putImageData(img,0,0);
 }
 function RLterrain(dayF,sunE){
@@ -143,7 +181,7 @@ function RLterrain(dayF,sunE){
   const T=TERR.pan;
   if(T&&!S.ar){
     const sa=sunE?v2altaz(sunE):{alt:-90,az:0};
-    const key=T.gen+'|'+Math.round(dayF*25)+'|'+Math.round(sa.alt/2)+'|'+Math.round(sa.az/3)+'|'+Math.round(RL.moonGlow*10);
+    const key=T.gen+'|'+(TERR.sat?1:0)+(TERR.near&&TERR.near.px?1:0)+'|'+Math.round(dayF*25)+'|'+Math.round(sa.alt/2)+'|'+Math.round(sa.az/3)+'|'+Math.round(RL.moonGlow*10);
     if(key!==T.key){T.key=key;rlPaintPan(dayF,sunE,RL.moE)}
     const step=2,cols=step*4;
     for(let a0=0;a0<360;a0+=step){const a1=a0+step+0.3;
