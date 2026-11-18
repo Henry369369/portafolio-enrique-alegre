@@ -44,3 +44,15 @@ Uso
    Chichén Itzá, Teotihuacán, Machu Picchu, Angkor Wat) y a su época.
  - ⚙️ fecha/hora/lugar manual (años a.C. con números negativos), capas y modo rojo.
  - Tocá cualquier astro para ver su información.
+
+Versión 17 — "más real"
+- Horizonte con el relieve real (sierras y montañas): Terrain Tiles de Mapzen en AWS (SRTM y otros).
+- Refracción de la atmósfera (el Sol y la Luna se ven achatados y más altos al salir y ponerse).
+- Estrellas más débiles y rojizas cerca del horizonte, y titileo real; los planetas casi no titilan.
+- La Luna ilumina el cielo y apaga las estrellas débiles y la Vía Láctea.
+- Estrellas fugaces con la frecuencia real de cada lluvia, y simulación del máximo desde "¿Qué ver esta noche?".
+- Cometas y asteroides (Ceres, Vesta, Palas, Juno y el cometa Encke).
+- Eclipses de Sol y de Luna: simulación y lista de los próximos visibles desde tu ubicación.
+- Movimiento suave: combina la brújula con el giroscopio.
+- Modo nocturno rojo con adaptación de los ojos a la oscuridad.
+Todo se puede apagar en Más opciones > Ajustes.

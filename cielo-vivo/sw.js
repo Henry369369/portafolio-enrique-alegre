@@ -1,11 +1,11 @@
 // Service worker de Cielo Vivo
 // - App: primero la red (para recibir actualizaciones) y, sin conexión, lo guardado.
 // - Mapas y fotos: se guardan al verlos, para poder usarlos después sin internet.
-const CACHE='cielo-vivo-v16',TILES='cielo-mapas-v1',MAXTILES=1500;
-const FILES=['./','./index.html','./data.js','./satellite.min.js','./manifest.json','./icon-192.png','./icon-512.png','./leaflet/leaflet.js','./leaflet/leaflet.css'];
+const CACHE='cielo-vivo-v17',TILES='cielo-mapas-v1',MAXTILES=1500;
+const FILES=['./','./index.html','./data.js','./real.js','./satellite.min.js','./manifest.json','./icon-192.png','./icon-512.png','./leaflet/leaflet.js','./leaflet/leaflet.css'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE&&k!==TILES).map(k=>caches.delete(k)))));self.clients.claim()});
-const esMapa=u=>/gibs\.earthdata\.nasa\.gov|tile\.openstreetmap\.org|arcgisonline\.com|upload\.wikimedia\.org/.test(u.hostname);
+const esMapa=u=>/gibs\.earthdata\.nasa\.gov|tile\.openstreetmap\.org|arcgisonline\.com|upload\.wikimedia\.org/.test(u.hostname)||/elevation-tiles-prod/.test(u.pathname);
 async function recortar(){const c=await caches.open(TILES);const k=await c.keys();if(k.length>MAXTILES)for(const r of k.slice(0,k.length-MAXTILES))await c.delete(r)}
 self.addEventListener('fetch',e=>{
   if(e.request.method!=='GET')return;const u=new URL(e.request.url);

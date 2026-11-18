@@ -168,7 +168,7 @@ input[type=range]{width:100%}
 <!-- Panel: más -->
 <div class="panel" id="pMore">
   <button class="tbtn x" data-close>✕</button>
-  <h2>☰ Más opciones <span style="font-size:12px;color:var(--dim)">· versión 16</span></h2>
+  <h2>☰ Más opciones <span style="font-size:12px;color:var(--dim)">· versión 17</span></h2>
   <div class="list">
     <button class="item" id="bSet">⚙️ Fecha, lugar y capas<small>Hora, coordenadas, Vía Láctea, contaminación lumínica, cielo andino…</small></button>
     <button class="item" id="bCal">🎯 Calibrar la brújula con una estrella<small>Corrige el error del norte apuntando a una estrella que reconozcas</small></button>
@@ -184,7 +184,7 @@ input[type=range]{width:100%}
 <!-- Panel: IA -->
 <div class="panel" id="pAI">
   <button class="tbtn x" data-close>✕</button>
-  <h2>🤖 Preguntale al cielo <span style="font-size:11px;color:var(--dim)">v16</span></h2>
+  <h2>🤖 Preguntale al cielo <span style="font-size:11px;color:var(--dim)">v17</span></h2>
   <div id="aiSetup">
     <p>El asistente usa <b>Gemini</b>, la IA de Google, con su plan gratuito. Necesitás una clave propia (se saca una sola vez, sin tarjeta):</p>
     <p>1. Entrá a <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--acc)">aistudio.google.com/apikey</a> con tu cuenta de Google.<br>2. Tocá <b>"Create API key"</b> (Crear clave de API) y copiala.<br>3. Pegala acá abajo.</p>
@@ -276,7 +276,7 @@ input[type=range]{width:100%}
   <h3>Acerca de</h3>
   <p style="font-size:12px;color:var(--dim)">Telescopio: los planetas, la Luna y los objetos de cielo profundo se dibujan por simulación (tamaños, fases, anillos de Saturno y lunas de Júpiter calculados; el aspecto de la superficie es ilustrativo). Lunas de Júpiter: algoritmo de Meeus de baja precisión.</p>
   <p style="font-size:12px;color:var(--dim)">Mapas: © colaboradores de OpenStreetMap (calles) e imágenes satelitales © Esri. Necesitan internet; el cielo funciona sin conexión.</p>
-  <p style="font-size:12px;color:var(--dim)">Catálogo: ~4000 estrellas hasta magnitud 5,8 (Hipparcos, vía d3-celestial, licencia BSD). Planetas: elementos orbitales de JPL; Luna: modelo simplificado. Precisión ±1° en épocas antiguas (no se incluye el movimiento propio de las estrellas). Para fines educativos.</p>
+  <p style="font-size:12px;color:var(--dim)">Catálogo: ~4000 estrellas hasta magnitud 5,8 (Hipparcos, vía d3-celestial, licencia BSD). Planetas: elementos orbitales de JPL; Luna: modelo simplificado. Precisión ±1° en épocas antiguas (con movimiento propio de las estrellas brillantes). Para fines educativos.</p>
 </div>
 
 <div id="start">
@@ -293,6 +293,7 @@ input[type=range]{width:100%}
 <div id="toast"></div>
 
 <script src="data.js"></script>
+<script src="real.js"></script>
 <script>
 "use strict";
 // ======================= Utilidades =======================
@@ -509,32 +510,34 @@ function draw(){
   const P=precessionMatrix(S.jd),Hm=horizMatrix(S.jd,S.lat,S.lon),M=mmul(Hm,P);
   // Sol
   const sun=planetVecJ2000('sol',S.jd);const sunE=mv(M,sun.v);const sunAlt=v2altaz(sunE).alt;
-  const dayF=S.layers.day?clamp((sunAlt+12)/16,0,1):0; // 0 noche, 1 día
+  let dayF=S.layers.day?clamp((sunAlt+12)/16,0,1):0; // 0 noche, 1 día
+  dayF=RLpre(P,Hm,M,sunE,sun,dayF);
   // fondo
   const g=ctx.createLinearGradient(0,0,0,H);
-  const top=mixc([5,8,22],[40,90,170],dayF),bot=mixc([14,20,48],[120,170,220],dayF);
+  let [top,bot]=RLskyColors(rlMix([5,8,22],[40,90,170],dayF),rlMix([14,20,48],[120,170,220],dayF),sunE,dayF);top=top.map(Math.round).join(',');bot=bot.map(Math.round).join(',');
   if(S.ar){ctx.clearRect(0,0,W,H);ctx.fillStyle='rgba(0,0,20,.18)';ctx.fillRect(0,0,W,H)}
   else{g.addColorStop(0,`rgb(${top})`);g.addColorStop(1,`rgb(${bot})`);ctx.fillStyle=g;ctx.fillRect(0,0,W,H)}
   hits=[];
-  drawSkyGlow(dayF);drawMilkyWay(M,dayF);drawAndes(M,dayF);drawPoles(Hm);drawTrails(P,dayF);
+  RLtwilight(sunE,dayF);drawSkyGlow(dayF);RLmoonHalo();drawMilkyWay(M,dayF);drawAndes(M,dayF);drawPoles(Hm);drawTrails(P,dayF);
   const zoomBoost=Math.pow(80/S.fov,0.35);
   let limMag=Math.min(6.2,7.4-0.45*S.layers.bortle)-dayF*6.5+Math.log2(80/S.fov)*0.5;if(S.ar)limMag=Math.min(limMag,4.6);
   {const w=S.layers.wx&&S.layers.clouds?wxAt(S.jd):null;if(w&&!w.out){limMag-=w.cloud/100*0.4+(w.hum>85?0.5:0)+(w.vis<10?1:0)}}
+  limMag+=RL.limAdj;
   // líneas de constelaciones
   if(S.layers.lines){
     ctx.strokeStyle=`rgba(110,150,255,${0.45*(1-dayF*0.8)})`;ctx.lineWidth=1;ctx.beginPath();
-    for(const seg of LINES){let prev=null;for(const v0 of seg){const p=project(mv(M,v0));if(p&&prev&&p.cz>-0.2&&prev.cz>-0.2){ctx.moveTo(prev.x,prev.y);ctx.lineTo(p.x,p.y)}prev=p}}
+    for(const seg of LINES){let prev=null;for(const v0 of seg){const p=project(RLrefr(mv(M,v0)));if(p&&prev&&p.cz>-0.2&&prev.cz>-0.2){ctx.moveTo(prev.x,prev.y);ctx.lineTo(p.x,p.y)}prev=p}}
     ctx.stroke();
   }
   // nombres de constelaciones
   if(S.layers.cons){
     ctx.font='600 11px system-ui';ctx.textAlign='center';ctx.fillStyle=`rgba(150,180,255,${0.7*(1-dayF*0.7)})`;
-    for(const c of CONS){const p=project(mv(M,c.v));if(p&&p.cz>0&&inScr(p))ctx.fillText(c.name.toUpperCase(),p.x,p.y)}
+    for(const c of CONS){const p=project(RLrefr(mv(M,c.v)));if(p&&p.cz>0&&inScr(p))ctx.fillText(c.name.toUpperCase(),p.x,p.y)}
   }
   // Messier
   if(S.layers.mes){
     ctx.strokeStyle='rgba(160,255,200,.7)';ctx.fillStyle='rgba(160,255,200,.8)';ctx.font='10px system-ui';ctx.textAlign='left';
-    for(const m of MESSIER){if(m.mag>limMag+2.5)continue;const p=project(mv(M,m.v));if(!p||!inScr(p))continue;
+    for(const m of MESSIER){if(m.mag>limMag+2.5)continue;const p=project(RLrefr(mv(M,m.v)));if(!p||!inScr(p))continue;
       ctx.beginPath();ctx.arc(p.x,p.y,4,0,7);ctx.stroke();ctx.fillText(m.id,p.x+6,p.y-4);
       hits.push({x:p.x,y:p.y,o:{kind:'mes',m,enu:mv(M,m.v)}})}
   }
@@ -542,30 +545,34 @@ function draw(){
   ctx.textAlign='left';ctx.font='11px system-ui';
   for(const s of STARS){
     if(s.mag>limMag)continue;
-    const e=mv(M,s.v);const p=project(e);if(!p||!inScr(p))continue;
-    const r=Math.max(0.5,(limMag+0.8-s.mag)*0.55*zoomBoost);
-    ctx.globalAlpha=clamp((limMag-s.mag+0.6)/1.5,0.25,1)*(e[2]<0&&S.layers.ground?0.35:1);
-    ctx.fillStyle=s.col;ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);ctx.fill();
-    if(s.mag<1.2){ctx.globalAlpha*=0.25;ctx.beginPath();ctx.arc(p.x,p.y,r*2.6,0,7);ctx.fill()}
+    const e=RLrefr(mv(M,s.v));const p=project(e);if(!p||!inScr(p))continue;
+    const A=RLstar(e,s,false);const mg=s.mag+A.dm;if(mg>limMag)continue;
+    const r=Math.max(0.5,(limMag+0.8-mg)*0.55*zoomBoost)*A.rs;
+    ctx.globalAlpha=clamp((limMag-mg+0.6)/1.5*A.tw,0.2,1)*(e[2]<0&&S.layers.ground?0.35:1);
+    ctx.fillStyle=A.col||s.col;ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);ctx.fill();
+    if(mg<1.2){ctx.globalAlpha*=0.25;ctx.beginPath();ctx.arc(p.x,p.y,r*2.6,0,7);ctx.fill()}
     ctx.globalAlpha=1;
     if(S.layers.names&&s.name&&s.mag<(1.8+Math.log2(80/S.fov)*1.2)){ctx.fillStyle='rgba(230,236,255,.85)';ctx.fillText(s.name,p.x+r+3,p.y+3)}
     if(s.mag<4.8)hits.push({x:p.x,y:p.y,o:{kind:'star',s,enu:e}});
   }
   // planetas
   for(const pl of PLANETS){
-    const pv=planetVecJ2000(pl.id,S.jd);const e=mv(M,pv.v);const p=project(e);if(!p||!inScr(p))continue;
-    if(pl.m>limMag)continue;
-    const r=pl.m<-1?4.2:pl.m<1?3.2:2.2;
-    ctx.fillStyle=pl.c;ctx.beginPath();ctx.arc(p.x,p.y,r*zoomBoost,0,7);ctx.fill();
+    const pv=planetVecJ2000(pl.id,S.jd);const e=RLrefr(mv(M,pv.v));const p=project(e);if(!p||!inScr(p))continue;
+    const A=RLstar(e,pl,true);if(pl.m+A.dm>limMag)continue;
+    const r=(pl.m<-1?4.2:pl.m<1?3.2:2.2)*A.rs;
+    ctx.globalAlpha=clamp(A.tw,0.3,1);ctx.fillStyle=A.col||pl.c;ctx.beginPath();ctx.arc(p.x,p.y,r*zoomBoost,0,7);ctx.fill();ctx.globalAlpha=1;
     ctx.fillStyle='#ffd27a';ctx.font='600 12px system-ui';ctx.fillText(pl.n,p.x+8,p.y+4);
     hits.push({x:p.x,y:p.y,o:{kind:'planet',pl,enu:e,dist:pv.r}});
   }
+  // Sol (antes que la Luna, para que la Luna lo tape en un eclipse)
+  const sunA=RLrefr(sunE);
+  {const p=project(sunA);if(p&&inScr(p)){const r=Math.max(9,0.27*D2R*scale);RLwithSquash(p,RLsquash(sunE,0.27),()=>RLdrawSun(p,r));hits.push({x:p.x,y:p.y,o:{kind:'sun',enu:sunA}})}}
   // Luna
-  const mo=moonVecOfDate(S.jd);const moE=topoMoon(mv(Hm,mo.v));const sunDate=mv(P,sun.v);
+  const mo=moonVecOfDate(S.jd);const moT=topoMoon(mv(Hm,mo.v));const moE=RLrefr(moT);const sunDate=mv(P,sun.v);
   const elong=Math.acos(clamp(dot(mo.v,sunDate),-1,1));const illum=(1-Math.cos(elong))/2;
-  {const p=project(moE);if(p&&inScr(p)){const r=Math.max(7,0.26*D2R*scale);drawMoon(p,r,illum,project(sunE));hits.push({x:p.x,y:p.y,o:{kind:'moon',enu:moE,illum,elong}})}}
-  // Sol
-  {const p=project(sunE);if(p&&inScr(p)){const r=Math.max(9,0.27*D2R*scale);const gg=ctx.createRadialGradient(p.x,p.y,r*0.3,p.x,p.y,r*4);gg.addColorStop(0,'rgba(255,240,180,1)');gg.addColorStop(1,'rgba(255,200,80,0)');ctx.fillStyle=gg;ctx.beginPath();ctx.arc(p.x,p.y,r*4,0,7);ctx.fill();ctx.fillStyle='#fff6d0';ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);ctx.fill();ctx.fillStyle='#ffd27a';ctx.font='600 12px system-ui';ctx.fillText('Sol',p.x+r+4,p.y+4);hits.push({x:p.x,y:p.y,o:{kind:'sun',enu:sunE}})}}
+  {const p=project(moE);if(p&&inScr(p)){const r=RL.solarObsc>0?Math.max(9,0.27*D2R*scale)*RL.rM/RL.rS:Math.max(7,0.26*D2R*scale);RLwithSquash(p,RLsquash(moT,0.26),()=>drawMoon(p,r,illum,project(sunA)));hits.push({x:p.x,y:p.y,o:{kind:'moon',enu:moE,illum,elong}})}}
+  // cometas, asteroides y estrellas fugaces
+  RLsmall(M,limMag,dayF);RLmeteors(M,dayF,limMag);
   // nubes según el clima real
   drawClouds(dayF,illum,v2altaz(moE).alt,sunE,moE);
   // Estación Espacial
@@ -575,6 +582,7 @@ function draw(){
   // suelo
   if(S.layers.grid)drawGrid();
   if(S.layers.ground&&!S.ar){drawGround(dayF);drawGroundMap(dayF)}
+  if(S.layers.ground)RLterrain(dayF);
   drawHorizon();
   drawCardinals();
   // marcas de alineación del monumento
@@ -586,8 +594,8 @@ function draw(){
   centerObj=null;let bd=Math.max(30,Math.min(W,H)*0.06);for(const hh of hits){if(hh.o.kind==='andes'||hh.o.kind==='iss'||hh.o.kind==='sat')continue;const d=Math.hypot(hh.x-W/2,hh.y-H/2);if(d<bd){bd=d;centerObj=hh.o}}
   const showRet=S.sensor;$('reticle').style.display=showRet?'block':'none';
   const sb=$('scopeBtn');if(centerObj&&showRet&&!SC.open){sb.style.display='block';const lbl='🔭 Ver '+objLabel(centerObj)+' en el telescopio';if(sb.textContent!==lbl)sb.textContent=lbl}else sb.style.display='none';
-  const idle=!S.sensor&&!S.play&&!ROT.on&&!weatherAnimating()&&!(S.layers.sats&&SATS.visibleNow.length)&&!GAME.on&&!TOUR.on&&performance.now()-lastAct>4000;
-  if(SC.open)setTimeout(()=>requestAnimationFrame(draw),250);else if(idle)setTimeout(()=>requestAnimationFrame(draw),400);else requestAnimationFrame(draw);
+  const idle=!S.sensor&&!S.play&&!ROT.on&&!weatherAnimating()&&!(S.layers.sats&&SATS.visibleNow.length)&&!GAME.on&&!TOUR.on&&!RLbusy()&&performance.now()-lastAct>4000;
+  if(SC.open)setTimeout(()=>requestAnimationFrame(draw),250);else if(idle)setTimeout(()=>requestAnimationFrame(draw),RLidleMs());else requestAnimationFrame(draw);
   updateStatus(sunAlt);
 }
 const inScr=p=>p.x>-40&&p.x<W+40&&p.y>-40&&p.y<H+40;
@@ -595,17 +603,22 @@ const mixc=(a,b,t)=>a.map((x,i)=>Math.round(x+(b[i]-x)*t)).join(',');
 function drawMoon(p,r,illum,sp){
   let ang=0;if(sp)ang=Math.atan2(sp.y-p.y,sp.x-p.x);
   ctx.save();ctx.translate(p.x,p.y);ctx.rotate(ang);
-  ctx.fillStyle='#2a2f3d';ctx.beginPath();ctx.arc(0,0,r,0,7);ctx.fill();
-  ctx.fillStyle='#f4f1e4';ctx.beginPath();
+  ctx.fillStyle=RL.moonDark||'#2a2f3d';ctx.beginPath();ctx.arc(0,0,r,0,7);ctx.fill();
+  ctx.fillStyle=RL.moonCol||'#f4f1e4';ctx.beginPath();
   ctx.arc(0,0,r,-Math.PI/2,Math.PI/2,false); // mitad iluminada hacia el Sol (+x)
   const k=(1-2*illum); // elipse del terminador
   ctx.ellipse(0,0,Math.abs(k)*r,r,0,Math.PI/2,-Math.PI/2,k>0);
   ctx.fill();ctx.restore();
-  ctx.fillStyle='#ffd27a';ctx.font='600 12px system-ui';ctx.textAlign='left';ctx.fillText('Luna',p.x+r+4,p.y+4);
+  if(RL.lunar)RLlunarShadow(p,r);
+  ctx.fillStyle='#ffd27a';ctx.font='600 12px system-ui';ctx.textAlign='left';ctx.fillText(RL.lunar&&RL.lunar.depth>0?(RL.lunar.depth>=1?'Luna (eclipse total)':'Luna (eclipse parcial)'):'Luna',p.x+r+4,p.y+4);
 }
 function drawGround(dayF,fillOverride,noStroke){
   // el horizonte es un círculo en proyección estereográfica
   const Up=[0,0,1];
+  if(S.fov<40){ // con poco campo, si el horizonte no cruza la pantalla todo es cielo o todo es suelo
+    let cross=false;for(let az=0;az<360&&!cross;az+=0.5){const p=project(altaz2v(0,az));if(p&&p.cz>0&&p.x>-5&&p.x<W+5&&p.y>-5&&p.y<H+5)cross=true}
+    if(!cross){if(camF[2]<0){ctx.fillStyle=fillOverride||`rgba(${mixc([10,22,16],[40,70,40],dayF)},0.93)`;ctx.fillRect(0,0,W,H)}return}
+  }
   let h0=[camF[0],camF[1],0];if(Math.hypot(h0[0],h0[1])<1e-6)h0=[camU[0],camU[1],0];h0=vnorm(h0);
   const h1=cross(Up,h0),h2=[-h1[0],-h1[1],0];
   const pts=[h0,h1,h2].map(v=>project(v)).filter(Boolean);if(pts.length<3)return;
@@ -624,7 +637,7 @@ function drawGround(dayF,fillOverride,noStroke){
   const ux=(a2*(B.y-C.y)+b2*(C.y-A.y)+c2*(A.y-B.y))/d,uy=(a2*(C.x-B.x)+b2*(A.x-C.x)+c2*(B.x-A.x))/d,rad=Math.hypot(A.x-ux,A.y-uy);
   let inside;if(nad>-0.999){const pn=project([0,0,-1]);inside=pn?Math.hypot(pn.x-ux,pn.y-uy)<rad:false}else inside=false;
   ctx.beginPath();
-  if(inside){ctx.arc(ux,uy,rad,0,7)}else{ctx.rect(-10,-10,W+20,H+20);ctx.arc(ux,uy,rad,0,7,true)}
+  if(inside){ctx.arc(ux,uy,rad,0,7)}else{ctx.rect(-10,-10,W+20,H+20);ctx.arc(ux,uy,rad,2*Math.PI,0,true)}
   ctx.fill('evenodd');ctx.beginPath();ctx.arc(ux,uy,rad,0,7);ctx.stroke();
 }
 function polyAltAz(pts){ctx.beginPath();let prev=null;for(const [alt,az] of pts){const p=project(altaz2v(alt,az));if(p&&prev&&p.cz>-0.3&&prev.cz>-0.3){ctx.moveTo(prev.x,prev.y);ctx.lineTo(p.x,p.y)}prev=p}ctx.stroke()}
@@ -638,21 +651,21 @@ function drawGrid(){
 function drawHorizon(){
   // línea del horizonte bien marcada
   ctx.strokeStyle='#5dff9a';ctx.lineWidth=2.5;ctx.shadowColor='#5dff9a';ctx.shadowBlur=6;
-  const pts=[];for(let az=0;az<=360;az+=1.5)pts.push([0,az]);polyAltAz(pts);ctx.shadowBlur=0;
+  const pts=[];for(let az=0;az<=360;az+=1.5)pts.push([RLhz(az),az]);polyAltAz(pts);ctx.shadowBlur=0;
   // marcas cada 10° y números cada 30°
   ctx.lineWidth=1.5;ctx.font='10px system-ui';ctx.textAlign='center';
-  for(let az=0;az<360;az+=10){const p0=project(altaz2v(0,az)),p1=project(altaz2v(az%30?0.8:1.8,az));if(!p0||!p1||p0.cz<0||!inScr(p0))continue;
+  for(let az=0;az<360;az+=10){const hz=RLhz(az),p0=project(altaz2v(hz,az)),p1=project(altaz2v(hz+(az%30?0.8:1.8),az));if(!p0||!p1||p0.cz<0||!inScr(p0))continue;
     ctx.strokeStyle='#5dff9a';ctx.beginPath();ctx.moveTo(p0.x,p0.y);ctx.lineTo(p1.x,p1.y);ctx.stroke();
     if(az%30===0&&az%90!==0){ctx.fillStyle='rgba(160,255,190,.8)';ctx.fillText(az+'°',p1.x,p1.y-4)}}
   // rótulo "HORIZONTE" donde estás mirando
-  const fa=v2altaz(camF).az;const ph=project(altaz2v(0,fa+12));
+  const fa=v2altaz(camF).az;const ph=project(altaz2v(RLhz(fa+12),fa+12));
   if(ph&&ph.cz>0&&inScr(ph)){ctx.fillStyle='#5dff9a';ctx.font='700 11px system-ui';ctx.fillText('HORIZONTE',ph.x,ph.y-8)}
   ctx.textAlign='left';
 }
 function drawCardinals(){
   const C=[['N',0],['NE',45],['E',90],['SE',135],['S',180],['SO',225],['O',270],['NO',315]];
   ctx.textAlign='center';
-  for(const [n,az] of C){const p=project(altaz2v(0,az));if(!p||!inScr(p)||p.cz<0)continue;
+  for(const [n,az] of C){const p=project(altaz2v(RLhz(az),az));if(!p||!inScr(p)||p.cz<0)continue;
     ctx.font=n.length===1?'700 16px system-ui':'600 12px system-ui';ctx.fillStyle=n==='N'?'#ff6b6b':'#9fe3b0';ctx.fillText(n,p.x,p.y+18)}
   ctx.textAlign='left';
 }
@@ -2113,7 +2126,7 @@ function begin(useSensors){
 }
 $('bStart').onclick=()=>begin(true);
 $('bStartManual').onclick=()=>begin(false);
-applyRed();requestAnimationFrame(draw);
+RLinit();applyRed();requestAnimationFrame(draw);
 
 // ======================= Instalación (PWA) =======================
 let deferred=null;
