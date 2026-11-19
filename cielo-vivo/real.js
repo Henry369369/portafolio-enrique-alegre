@@ -225,7 +225,7 @@ function rlShadow(moGeoV,dist,sunDateV,sunR){ // sombra de la Tierra (radios en 
   return{U:1.02*(pm+ps-ss),Pn:1.02*(pm+ps+ss),sm,sep:rlAng(moGeoV,[-sunDateV[0],-sunDateV[1],-sunDateV[2]])};
 }
 function RLpre(P,Hm,M,sunE,sun,dayF){
-  const now=performance.now();RL.dt=RL.lastT?Math.min(0.25,(now-RL.lastT)/1000):0.016;RL.lastT=now;RL.t=now/1000;
+  RL.sunE=sunE;const now=performance.now();RL.dt=RL.lastT?Math.min(0.25,(now-RL.lastT)/1000):0.016;RL.lastT=now;RL.t=now/1000;
   if(now-RL.kT>3000){RL.kT=now;const w=S.layers.wx&&typeof wxAt==='function'?wxAt(S.jd):null;const ok=w&&!w.out;
     const T=ok&&isFinite(w.temp)?w.temp:15,Pr=1010*Math.exp(-(TERR.h0||0)/8430);RL.k=(Pr/1010)*(283/(273+T));
     RL.kx=0.2+(ok?(w.hum>85?0.1:w.hum>65?0.05:0)+(w.vis<10?0.1:0):0.03)-((TERR.h0||0)>1200?0.03:0);
@@ -541,7 +541,7 @@ function rlApplySensorCam(){
 
 // ---------- Activación ----------
 function RLinit(){
-  for(const k of ['relief','atm','twinkle','meteors','small'])if(S.layers[k]===undefined)S.layers[k]=true;
+  for(const k of ['relief','atm','twinkle','meteors','small','autoFocus'])if(S.layers[k]===undefined)S.layers[k]=true;
   if(S.layers.reliefX===undefined)S.layers.reliefX=2;
   onOri=rlOnOri;applySensorCam=rlApplySensorCam;
   topoMoon=function(enu){if(RL.moDistJD!==S.jd){RL.moDist=moonVecOfDate(S.jd).dist;RL.moDistJD=S.jd}return rlTopoMoon(enu,RL.moDist)};
@@ -562,7 +562,8 @@ function RLinit(){
     <label class="chk"><input type="checkbox" id="cAtm"> Atmósfera real: refracción y estrellas más débiles y rojizas abajo</label>
     <label class="chk"><input type="checkbox" id="cTwinkle"> Titileo de las estrellas</label>
     <label class="chk"><input type="checkbox" id="cMeteors"> Estrellas fugaces (lluvias de meteoros reales)</label>
-    <label class="chk"><input type="checkbox" id="cSmall"> Cometas y asteroides</label>`;
+    <label class="chk"><input type="checkbox" id="cSmall"> Cometas y asteroides</label>
+    <label class="chk"><input type="checkbox" id="cFocus"> Al apuntar a un astro, abrir solo su ficha con zoom</label>`;
     box.insertAdjacentHTML('afterend',html)}
   const markRx=()=>document.querySelectorAll('[data-rx]').forEach(b=>b.classList.toggle('on',+b.dataset.rx===S.layers.reliefX));
   document.querySelectorAll('[data-rx]').forEach(b=>b.onclick=()=>{S.layers.reliefX=+b.dataset.rx;LS.set('layers',S.layers);markRx();toast(S.layers.reliefX===1?'Sierras en su tamaño real':'Sierras realzadas ×'+S.layers.reliefX+' para verlas mejor (la hora en que se oculta el Sol sigue siendo la real)')});
@@ -572,4 +573,153 @@ function RLinit(){
   const about=[...document.querySelectorAll('#pSet p')].find(p=>/Catálogo/.test(p.textContent));
   if(about)about.insertAdjacentHTML('afterend','<p style="font-size:12px;color:var(--dim)">Relieve: Terrain Tiles de Mapzen en AWS (SRTM, GMTED y otros), resolución ~130 m. Refracción: fórmula de Saemundsson con la temperatura del clima real. Asteroides y cometas: elementos orbitales del Centro de Planetas Menores. Eclipses y lluvias de meteoros: cálculo propio aproximado.</p>');
 }
-const RLBOX=[['cRelief','relief'],['cAtm','atm'],['cTwinkle','twinkle'],['cMeteors','meteors'],['cSmall','small']];
+const RLBOX=[['cRelief','relief'],['cAtm','atm'],['cTwinkle','twinkle'],['cMeteors','meteors'],['cSmall','small'],['cFocus','autoFocus']];
+
+// =====================================================================
+// 11. Enfoque automático: al dejar la mira sobre un astro ~1 s se abre
+//     sola una ficha con vista ampliada y descripción.
+// =====================================================================
+const DESC={
+  sol:'Nuestra estrella: una esfera de gas a 150 millones de km que contiene el 99,8% de la masa del sistema solar. Su luz tarda unos 8 minutos en llegar. Nunca lo mires directamente.',
+  luna:'El único satélite natural de la Tierra, a unos 384.000 km. Siempre nos muestra la misma cara. Sus manchas oscuras son llanuras de lava solidificada, llamadas mares.',
+  mer:'El planeta más chico y más cercano al Sol. Da una vuelta al Sol cada 88 días. Como está tan cerca del Sol, solo se ve bajo, poco después del atardecer o antes del amanecer.',
+  ven:'El astro más brillante después del Sol y la Luna; por eso lo llaman "lucero". Está cubierto de nubes de ácido y su superficie supera los 460 °C. Con telescopio muestra fases como la Luna.',
+  mar:'El planeta rojo: su color viene del óxido de hierro del suelo. Tiene el volcán más alto del sistema solar, el Monte Olimpo, y dos lunas pequeñas, Fobos y Deimos.',
+  jup:'El planeta más grande: entran más de 1.300 Tierras. Con binoculares se ven sus cuatro lunas grandes (Ío, Europa, Ganímedes y Calisto), que descubrió Galileo en 1610.',
+  sat:'El planeta de los anillos, hechos de hielo y roca. Con un telescopio chico ya se ven. Es tan liviano que flotaría en el agua, y su luna Titán tiene lagos de metano.',
+  ura:'Un gigante de hielo que gira acostado, con el eje casi apoyado en su órbita. Fue el primer planeta descubierto con telescopio (Herschel, 1781). A simple vista apenas se ve.',
+  nep:'El planeta más lejano, a unos 4.500 millones de km. Tiene los vientos más fuertes del sistema solar. Se descubrió en 1846 gracias a cálculos matemáticos antes de verlo.',
+  'Sirio':'La estrella más brillante del cielo nocturno, a 8,6 años luz. Es doble: la acompaña una enana blanca, Sirio B. Cerca del horizonte titila con muchos colores.',
+  'Canopus':'La segunda estrella más brillante del cielo, a unos 310 años luz. Es una supergigante, y las sondas espaciales la usan como referencia para orientarse.',
+  'Arturo':'Una gigante naranja a 37 años luz, la más brillante del hemisferio norte del cielo. Es mucho más grande que el Sol y está en una etapa avanzada de su vida.',
+  'Rigil Kentaurus':'Alfa Centauri A, a 4,4 años luz: junto con Toliman y Próxima Centauri forma el sistema estelar más cercano al Sol. Es parecida a nuestro Sol.',
+  'Toliman':'Alfa Centauri B, compañera de Rigil Kentaurus, a 4,4 años luz. Las dos giran una alrededor de la otra cada 80 años.',
+  'Vega':'Una estrella blanca a 25 años luz. Hace unos 12.000 años era la estrella polar del norte y lo volverá a ser dentro de otros 12.000 por el bamboleo del eje de la Tierra.',
+  'Capella':'En realidad son dos estrellas gigantes amarillas que giran muy juntas, a 43 años luz. Desde el sur se ve baja hacia el norte.',
+  'Rigel':'Una supergigante azul a unos 860 años luz, la estrella más brillante de Orión. Brilla decenas de miles de veces más que el Sol.',
+  'Proción':'Una estrella a 11,5 años luz, de las más cercanas que vemos a simple vista. Como Sirio, tiene una enana blanca compañera.',
+  'Achernar':'Una estrella azul a unos 140 años luz que gira tan rápido que está muy achatada. Su nombre significa "el final del río" (Erídano).',
+  'Betelgeuse':'Una supergigante roja a unos 550 años luz: si estuviera en lugar del Sol llegaría más allá de Marte. Algún día explotará como supernova. En 2020 bajó mucho su brillo.',
+  'Hadar':'Un sistema de estrellas azules a unos 390 años luz. Con Rigil Kentaurus forma los "punteros" que señalan la Cruz del Sur.',
+  'Altair':'Una estrella blanca a 17 años luz que gira tan rápido (una vuelta cada 9 horas) que está achatada en los polos.',
+  'Acrux':'La estrella más brillante de la Cruz del Sur, a unos 320 años luz. Es un sistema de varias estrellas azules muy calientes.',
+  'Aldebarán':'Una gigante naranja a 65 años luz: el ojo del Toro. Parece estar en el cúmulo de las Híades, pero está mucho más cerca que ellas.',
+  'Spica':'Dos estrellas azules muy calientes, a unos 250 años luz, que giran tan juntas que se deforman una a la otra. Es la estrella más brillante de Virgo.',
+  'Antares':'Una supergigante roja a unos 550 años luz, el corazón del Escorpión. Su nombre significa "rival de Marte" por su color.',
+  'Pollux':'Una gigante naranja a 34 años luz con un planeta gigante a su alrededor. Junto con Castor forma los Gemelos.',
+  'Castor':'Parece una estrella, pero son seis: tres pares de estrellas que giran entre sí, a 51 años luz.',
+  'Fomalhaut':'Una estrella blanca a 25 años luz rodeada por un gran anillo de polvo, como un sistema planetario en formación.',
+  'Mimosa':'Una estrella azul a unos 280 años luz, el brazo izquierdo de la Cruz del Sur.',
+  'Gacrux':'La estrella de arriba de la Cruz del Sur: una gigante roja a 88 años luz. Su color anaranjado se nota a simple vista.',
+  'Deneb':'Una de las estrellas más luminosas que conocemos, a unos 2.600 años luz (la distancia es incierta). Si estuviera tan cerca como Sirio, brillaría casi como la Luna.',
+  'Régulo':'El corazón del León, a 79 años luz. Gira tan rápido que, si lo hiciera un poco más, se desarmaría.',
+  'Shaula':'El aguijón del Escorpión, a unos 570 años luz. Es un sistema de estrellas azules.',
+  'Bellatrix':'Una estrella azul a unos 250 años luz, el hombro de Orión. Su nombre significa "la guerrera".',
+  'Alnilam':'La estrella del medio de las Tres Marías, una supergigante azul a unos 2.000 años luz.',
+  'Alnitak':'Una de las Tres Marías, a unos 1.200 años luz. Muy cerca está la nebulosa Cabeza de Caballo, que solo se ve en fotos.',
+  'Mintaka':'Una de las Tres Marías, a unos 1.200 años luz. Está casi justo sobre el ecuador celeste: sale exactamente por el este.',
+  'Estrella Polar':'La estrella que marca el norte celeste, a unos 430 años luz. Desde Argentina no se ve: queda bajo el horizonte norte.',
+  'M42':'La Nebulosa de Orión, a unos 1.300 años luz: una nube enorme de gas donde están naciendo estrellas. Se ve a simple vista como una mancha debajo de las Tres Marías.',
+  'M31':'La galaxia de Andrómeda, a 2,5 millones de años luz: lo más lejano que se ve a simple vista. Tiene más de un billón de estrellas y algún día chocará con la Vía Láctea.',
+  'M45':'Las Pléyades o "Siete Cabritas", a unos 440 años luz: un cúmulo de estrellas jóvenes y azules. A simple vista se ven 6 o 7; con binoculares, decenas.',
+  'M44':'El Pesebre, un cúmulo de estrellas a unos 600 años luz. A simple vista es una manchita; con binoculares se ve lleno de estrellas.',
+  'M8':'La Nebulosa de la Laguna, a unos 4.000 años luz, en Sagitario: una nube de gas donde se forman estrellas. Con binoculares se ve en cielos oscuros.',
+  'M7':'El Cúmulo de Ptolomeo, a unos 980 años luz, cerca del aguijón del Escorpión. Ya lo describió Ptolomeo hace casi 2.000 años.',
+  'M13':'El gran cúmulo globular de Hércules: unas 300.000 estrellas viejas apretadas en una bola, a 22.000 años luz.',
+  'M22':'Un cúmulo globular brillante en Sagitario, a 10.000 años luz. Desde el sur se ve alto y con binoculares parece una bolita de algodón.',
+  'M104':'La Galaxia del Sombrero, a 30 millones de años luz: la vemos de costado, con una franja oscura de polvo que parece el ala de un sombrero.',
+  'M83':'La Galaxia del Molinillo Austral, a 15 millones de años luz: una espiral que vemos de frente.',
+  'M1':'La Nebulosa del Cangrejo: los restos de una estrella que explotó en el año 1054. Astrónomos chinos la vieron brillar de día durante semanas.'
+};
+const MTYPE={'Cúmulo globular':'Un cúmulo globular: cientos de miles de estrellas muy viejas agrupadas en forma de bola, en las afueras de la Vía Láctea.',
+  'Cúmulo abierto':'Un cúmulo abierto: un grupo de estrellas jóvenes que nacieron juntas de la misma nube de gas.',
+  'Galaxia':'Una galaxia: un sistema de miles de millones de estrellas, tan lejano que su luz salió hace millones de años.',
+  'Nebulosa planetaria':'Una nebulosa planetaria: la cáscara de gas que expulsó una estrella como el Sol al final de su vida.',
+  'Región de formación estelar':'Una nube de gas y polvo donde están naciendo estrellas nuevas.',
+  'Remanente de supernova':'Los restos de una estrella que explotó como supernova.'};
+const FOC={key:null,since:0,shownKey:null,lostT:0,dismissed:null,el:null,cv:null,c:null,o:null,t0:0,wiki:{}};
+function rlFocKey(o){if(!o)return null;return o.kind==='small'?'sm:'+o.b.id:objKey(o)}
+function rlWiki(title,check){
+  if(FOC.wiki[title])return FOC.wiki[title];const W2=FOC.wiki[title]={state:'loading',text:''};
+  fetch('https://es.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(title.replace(/ /g,'_'))).then(r=>r.ok?r.json():Promise.reject()).then(j=>{
+    if(j.type!=='standard'||!j.extract||(check&&!check.test(j.extract)))throw 0;
+    const ss=j.extract.match(/[^.!?]+[.!?]+/g)||[j.extract];let t='';for(const x of ss){if((t+x).length>320&&t)break;t+=x}
+    W2.text=t.trim();W2.state='ok';W2.url=j.content_urls&&j.content_urls.mobile?j.content_urls.mobile.page:'';rlFocText();
+  }).catch(()=>{W2.state='err';rlFocText()});
+  return W2;
+}
+function rlFocInfo(o){
+  const aa=v2altaz(o.enu);let title='',sub='',text='',wiki=null;
+  if(o.kind==='star'){const s=o.s;title=s.name||s.des||'Estrella';sub=`Estrella · magnitud ${s.mag.toFixed(1)} · ${consOf(s.v)}`;
+    text=DESC[s.name];if(!text&&s.name){wiki=rlWiki(s.name,/estrella|sistema estelar/i);if(wiki.state==='err')wiki=rlWiki(s.name+' (estrella)',/estrella/i)}
+    if(!text&&!s.name)text=`Una estrella de magnitud ${s.mag.toFixed(1)} en la constelación de ${consOf(s.v)}. Aunque se aumente con un telescopio, se ve como un punto: está demasiado lejos.`}
+  else if(o.kind==='planet'){title=o.pl.n;sub=`Planeta · a ${(o.dist*149.6).toFixed(0)} millones de km`;text=DESC[o.pl.id]}
+  else if(o.kind==='moon'){title='Luna';sub=`${(o.illum*100).toFixed(0)}% iluminada · ${phaseName(o.illum,moonWaxing())}`;text=DESC.luna}
+  else if(o.kind==='sun'){title='Sol';sub='⚠️ Nunca lo mires directamente';text=DESC.sol}
+  else if(o.kind==='mes'){const m=o.m;title=m.id+(m.alt?' · '+m.alt:'');sub=`${m.type} · magnitud ${m.mag}`;text=DESC[m.id];
+    if(!text){wiki=rlWiki('Objeto Messier '+m.id.slice(1)+'');if(wiki.state==='err')wiki=rlWiki(m.id);if(wiki.state==='err')text=MTYPE[m.type]||''}}
+  else if(o.kind==='small'){title=o.b.n;sub=`${o.b.t} · magnitud ${o.pos.mag.toFixed(1)}`;text=o.b.comet?'Un cometa: una bola de hielo y polvo que, al acercarse al Sol, larga una cola que siempre apunta en dirección contraria al Sol.':'Un asteroide del cinturón entre Marte y Júpiter, restos de la formación del sistema solar.'}
+  if(!text&&wiki)text=wiki.state==='ok'?wiki.text:wiki.state==='loading'?'Buscando la descripción…':(o.kind==='mes'?MTYPE[o.m.type]||'':'');
+  const pos=`${aa.alt.toFixed(0)}° de altura hacia el ${dirName(aa.az)}`;
+  return{title,sub,text,pos,src:wiki&&wiki.state==='ok'?wiki.url:''};
+}
+function rlFocBuild(){
+  const d=document.createElement('div');d.id='focusCard';
+  d.style.cssText='position:fixed;left:8px;right:8px;bottom:86px;max-width:560px;margin:0 auto;z-index:7;display:none;gap:10px;align-items:flex-start;background:rgba(10,14,32,.94);border:1px solid rgba(255,204,85,.55);border-radius:16px;padding:10px;color:#e8ecff;font:14px/1.35 system-ui;box-shadow:0 6px 24px rgba(0,0,0,.5);opacity:0;transform:translateY(12px);transition:opacity .25s,transform .25s';
+  d.innerHTML='<canvas id="focCv" style="position:static;inset:auto;display:block;width:112px;height:112px;flex:0 0 112px;border-radius:50%"></canvas><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:6px"><b id="focTitle" style="font-size:16px;color:#ffd27a"></b><button id="focX" style="background:none;border:0;color:#aab;font-size:18px;line-height:1;padding:0 4px">✕</button></div><div id="focSub" style="font-size:12px;color:#aab3d6;margin:2px 0 4px"></div><div id="focText" style="font-size:13px;max-height:7.2em;overflow:auto"></div><div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><button class="tbtn" id="focScope">🔭 Telescopio</button><button class="tbtn" id="focSpeak">🔊 Escuchar</button><button class="tbtn" id="focAI">🤖 Más</button></div></div>';
+  document.body.appendChild(d);FOC.el=d;FOC.cv=d.querySelector('#focCv');const dpr=Math.min(devicePixelRatio||1,2);FOC.cv.width=FOC.cv.height=112*dpr;FOC.c=FOC.cv.getContext('2d');FOC.c.scale(dpr,dpr);
+  $('focX').onclick=()=>{FOC.dismissed=FOC.shownKey;rlFocHide()};
+  $('focScope').onclick=()=>{const o=FOC.o;rlFocHide();FOC.dismissed=rlFocKey(o);if(o.kind!=='small')openScope(o);else showInfo(o)};
+  $('focSpeak').onclick=()=>{const i=rlFocInfo(FOC.o);speak(`${i.title}. ${i.text}`)};
+  $('focAI').onclick=()=>{const i=rlFocInfo(FOC.o);FOC.dismissed=FOC.shownKey;rlFocHide();openAI(`Contame más sobre ${i.title}: qué es, curiosidades y cómo verlo mejor desde acá.`)};
+}
+function rlFocText(){if(!FOC.shownKey||!FOC.o)return;const i=rlFocInfo(FOC.o);$('focTitle').textContent=i.title;$('focSub').textContent=i.sub+' · '+i.pos;
+  $('focText').innerHTML=esc(i.text)+(i.src?` <a href="${i.src}" target="_blank" rel="noopener" style="color:#8fb4ff;font-size:11px">Wikipedia</a>`:'');}
+function rlFocShow(o){
+  if(!FOC.el)rlFocBuild();FOC.o=o;FOC.shownKey=rlFocKey(o);FOC.t0=performance.now();FOC.lostT=0;FOC.subT=0;
+  rlFocText();FOC.el.style.display='flex';requestAnimationFrame(()=>{FOC.el.style.opacity='1';FOC.el.style.transform='none'});
+  $('focScope').style.display=o.kind==='small'?'none':'';
+  try{navigator.vibrate&&navigator.vibrate(25)}catch(e){}
+}
+function rlFocHide(){if(!FOC.shownKey)return;FOC.shownKey=null;if(FOC.el){FOC.el.style.opacity='0';FOC.el.style.transform='translateY(12px)';setTimeout(()=>{if(!FOC.shownKey)FOC.el.style.display='none'},260)}}
+function RLfocus(o,aiming){
+  if(!S.layers.autoFocus||!aiming||SC.open){rlFocHide();FOC.key=null;return}
+  const k=rlFocKey(o),now=performance.now();
+  if(FOC.dismissed&&k!==FOC.dismissed)FOC.dismissed=null;
+  if(k!==FOC.key){FOC.key=k;FOC.since=now}
+  if(FOC.shownKey){
+    if(k===FOC.shownKey){FOC.lostT=0;FOC.o=o}
+    else{if(!FOC.lostT)FOC.lostT=now;if(now-FOC.lostT>900)rlFocHide()}
+  }
+  if(!FOC.shownKey&&k&&k!==FOC.dismissed&&now-FOC.since>1100)rlFocShow(o);
+  if(FOC.shownKey){$('scopeBtn').style.display='none';rlFocDraw();if(now-(FOC.subT||0)>1000){FOC.subT=now;rlFocText()}}
+}
+function rlFocDraw(){ // vista ampliada con efecto de acercamiento
+  const o=FOC.o,c=FOC.c,w=112,cx=56,cy=56;if(!o)return;
+  const e=Math.min(1,(performance.now()-FOC.t0)/600),z=0.2+0.8*(1-Math.pow(1-e,3));
+  const day=clamp((v2altaz(RL.sunE||[0,0,-1]).alt+10)/14,0,1)*(S.layers.day?1:0);
+  c.clearRect(0,0,w,w);c.save();c.beginPath();c.arc(cx,cy,55,0,7);c.clip();
+  const bg=c.createRadialGradient(cx,cy,0,cx,cy,56);bg.addColorStop(0,`rgb(${mixc([8,10,22],[90,140,210],day)})`);bg.addColorStop(1,`rgb(${mixc([2,3,8],[60,100,170],day)})`);c.fillStyle=bg;c.fillRect(0,0,w,w);
+  const rn=rnd(rlFocKey(o));for(let i=0;i<40;i++){c.globalAlpha=(0.25+rn()*0.6)*(1-day);c.fillStyle='#fff';c.beginPath();c.arc(cx+(rn()-0.5)*110*z,cy+(rn()-0.5)*110*z,0.4+rn()*0.7,0,7);c.fill()}c.globalAlpha=1;
+  const R=44*z;
+  if(o.kind==='moon'){
+    if(!drawPhoto(c,o,cx,cy,R,0,'disk')){c.fillStyle='#d9d5c8';c.beginPath();c.arc(cx,cy,R,0,7);c.fill()}
+    const pm=project(o.enu),ps=RL.sunE?project(RLrefr(RL.sunE)):null;const ang=pm&&ps?Math.atan2(ps.x-pm.x,-(ps.y-pm.y)):0;
+    phaseShadow(c,cx,cy,R,o.illum,ang);
+  }else if(o.kind==='sun'){
+    if(!drawPhoto(c,o,cx,cy,R,0,'disk')){const g=c.createRadialGradient(cx,cy,0,cx,cy,R);g.addColorStop(0,'#fff');g.addColorStop(0.85,'#ffe9a8');g.addColorStop(1,'#e8b860');c.fillStyle=g;c.beginPath();c.arc(cx,cy,R,0,7);c.fill()}
+  }else if(o.kind==='planet'){
+    const id=o.pl.id,ok=id==='sat'?drawPhoto(c,o,cx,cy,R*0.95,0,'screen'):drawPhoto(c,o,cx,cy,R*(id==='jup'?0.9:0.8),0,'disk');
+    if(!ok){c.fillStyle=o.pl.c;c.beginPath();c.arc(cx,cy,R*0.6,0,7);c.fill();if(id==='sat'){c.strokeStyle='rgba(230,215,170,.8)';c.lineWidth=3;c.beginPath();c.ellipse(cx,cy,R,R*0.3,-0.3,0,7);c.stroke()}}
+  }else if(o.kind==='mes'){
+    if(!drawPhoto(c,o,cx,cy,R*1.1,0,'screen')){const g=c.createRadialGradient(cx,cy,0,cx,cy,R*0.8);g.addColorStop(0,'rgba(220,230,255,.75)');g.addColorStop(1,'rgba(150,170,230,0)');c.fillStyle=g;c.beginPath();c.arc(cx,cy,R,0,7);c.fill()}
+  }else if(o.kind==='star'){
+    const col=o.s.col,t=performance.now()/1000,tw=1+0.12*Math.sin(t*9+o.s.i)+0.06*Math.sin(t*17+o.s.i*2);const r0=Math.max(3,(7-o.s.mag)*2.6)*z*tw;
+    const g=c.createRadialGradient(cx,cy,0,cx,cy,r0*3.2);g.addColorStop(0,'#fff');g.addColorStop(0.18,col);g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.beginPath();c.arc(cx,cy,r0*3.2,0,7);c.fill();
+    c.strokeStyle=col;c.globalAlpha=0.5;c.lineWidth=1;const L=r0*4.5;c.beginPath();c.moveTo(cx-L,cy);c.lineTo(cx+L,cy);c.moveTo(cx,cy-L);c.lineTo(cx,cy+L);c.stroke();c.globalAlpha=1;
+  }else if(o.kind==='small'){
+    if(o.b.comet){c.strokeStyle='rgba(190,230,255,.5)';c.lineWidth=6;c.lineCap='round';c.beginPath();c.moveTo(cx,cy);c.lineTo(cx+40*z,cy-30*z);c.stroke()}
+    const g=c.createRadialGradient(cx,cy,0,cx,cy,10*z);g.addColorStop(0,'#eef');g.addColorStop(1,'rgba(200,220,255,0)');c.fillStyle=g;c.beginPath();c.arc(cx,cy,10*z,0,7);c.fill();
+  }
+  c.restore();c.strokeStyle='rgba(255,204,85,.7)';c.lineWidth=2;c.beginPath();c.arc(cx,cy,55,0,7);c.stroke();
+}

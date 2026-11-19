@@ -168,7 +168,7 @@ input[type=range]{width:100%}
 <!-- Panel: más -->
 <div class="panel" id="pMore">
   <button class="tbtn x" data-close>✕</button>
-  <h2>☰ Más opciones <span style="font-size:12px;color:var(--dim)">· versión 17.3</span></h2>
+  <h2>☰ Más opciones <span style="font-size:12px;color:var(--dim)">· versión 17.4</span></h2>
   <div class="list">
     <button class="item" id="bSet">⚙️ Fecha, lugar y capas<small>Hora, coordenadas, Vía Láctea, contaminación lumínica, cielo andino…</small></button>
     <button class="item" id="bCal">🎯 Calibrar la brújula con una estrella<small>Corrige el error del norte apuntando a una estrella que reconozcas</small></button>
@@ -184,7 +184,7 @@ input[type=range]{width:100%}
 <!-- Panel: IA -->
 <div class="panel" id="pAI">
   <button class="tbtn x" data-close>✕</button>
-  <h2>🤖 Preguntale al cielo <span style="font-size:11px;color:var(--dim)">v17.3</span></h2>
+  <h2>🤖 Preguntale al cielo <span style="font-size:11px;color:var(--dim)">v17.4</span></h2>
   <div id="aiSetup">
     <p>El asistente usa <b>Gemini</b>, la IA de Google, con su plan gratuito. Necesitás una clave propia (se saca una sola vez, sin tarjeta):</p>
     <p>1. Entrá a <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--acc)">aistudio.google.com/apikey</a> con tu cuenta de Google.<br>2. Tocá <b>"Create API key"</b> (Crear clave de API) y copiala.<br>3. Pegala acá abajo.</p>
@@ -594,6 +594,7 @@ function draw(){
   centerObj=null;let bd=Math.max(30,Math.min(W,H)*0.06);for(const hh of hits){if(hh.o.kind==='andes'||hh.o.kind==='iss'||hh.o.kind==='sat')continue;const d=Math.hypot(hh.x-W/2,hh.y-H/2);if(d<bd){bd=d;centerObj=hh.o}}
   const showRet=S.sensor;$('reticle').style.display=showRet?'block':'none';
   const sb=$('scopeBtn');if(centerObj&&showRet&&!SC.open){sb.style.display='block';const lbl='🔭 Ver '+objLabel(centerObj)+' en el telescopio';if(sb.textContent!==lbl)sb.textContent=lbl}else sb.style.display='none';
+  RLfocus(centerObj,showRet);
   const idle=!S.sensor&&!S.play&&!ROT.on&&!weatherAnimating()&&!(S.layers.sats&&SATS.visibleNow.length)&&!GAME.on&&!TOUR.on&&!RLbusy()&&performance.now()-lastAct>4000;
   if(SC.open)setTimeout(()=>requestAnimationFrame(draw),250);else if(idle)setTimeout(()=>requestAnimationFrame(draw),RLidleMs());else requestAnimationFrame(draw);
   updateStatus(sunAlt);
@@ -1124,13 +1125,14 @@ const scv=$('scopeCv'),sctx=scv.getContext('2d');
 function rnd(seed){let x=0;for(const c of String(seed))x=(x*31+c.charCodeAt(0))|0;return()=>{x^=x<<13;x^=x>>17;x^=x<<5;return((x>>>0)%100000)/100000}}
 function curScope(){return SCOPES.find(s=>s.id===SC.scope)||SCOPES[1]}
 function openScope(o){
+  if(o.kind==='small'){showInfo(o);return}
   SC.obj=o;SC.open=true;$('toast').style.display='none';$('scope').style.display='block';$('info').style.display='none';renderScopeUI();
   if(o.kind==='sun')toast('⚠️ Nunca apuntes un telescopio real al Sol sin un filtro solar certificado: causa ceguera inmediata.',6000);
   requestAnimationFrame(drawScope);
 }
 function closeScope(){SC.open=false;$('scope').style.display='none'}
 function objKey(o){return o.kind==='star'?o.s.name||('★'+o.s.i):o.kind==='planet'?o.pl.id:o.kind==='mes'?o.m.id:o.kind==='moon'?'luna':'sol'}
-function objLabel(o){return o.kind==='star'?(o.s.name||o.s.des||'Estrella'):o.kind==='planet'?o.pl.n:o.kind==='mes'?o.m.id+(o.m.alt?' — '+o.m.alt:''):o.kind==='moon'?'Luna':'Sol'}
+function objLabel(o){if(o.kind==='small')return o.b.n;return o.kind==='star'?(o.s.name||o.s.des||'Estrella'):o.kind==='planet'?o.pl.n:o.kind==='mes'?o.m.id+(o.m.alt?' — '+o.m.alt:''):o.kind==='moon'?'Luna':'Sol'}
 function renderScopeUI(){
   const sc=curScope();
   $('scInst').innerHTML=SCOPES.map(s=>`<button class="tbtn ${s.id===sc.id?'on':''}" data-sc="${s.id}">${s.n}</button>`).join('');
